@@ -1,6 +1,6 @@
 # GridSim City Scenario
 
-Sotckholm map
+GridSim simulation engine inside an aerial map from Stockholm, Sweden.
 
 ## Getting Started
 
@@ -8,7 +8,7 @@ These instructions will get you a copy of the project up and running on your loc
 
 ### Prerequisites
 
-The packages needed for install are inside requirements.txt: 
+The packages needed for install can be found inside requirements.txt: 
 
 ```
 pip install -r requirements.txt
