@@ -1,0 +1,5 @@
+pygame
+Pillow
+opencv-python
+tensorflow
+keras==2.1.0
