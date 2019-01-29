@@ -6,7 +6,7 @@ GridSim is an autonomous driving simulator engine that uses a car-like robot arc
 
 Demo below: 
 
-![Output sample](https://github.com/RovisLab/GridSim/tree/master/GridSim_City_Scenario/resources/demo/GridSim_demo_as_gif.gif)
+![Output sample](https://github.com/RovisLab/GridSim/tree/master/GridSim_City_Scenario/resources/gif/grid_sim_demo_as_gif.gif)
 
 ## Getting Started
 
