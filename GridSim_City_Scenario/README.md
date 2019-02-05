@@ -16,7 +16,20 @@ pip install -r requirements.txt
 
 ### Running the code
 
-The main function can be found inside car_kinematic_model.py
+Menu function can be found in car_cinematic_city_menu.py
+Run the script in order to access the menu where you can:
+
+* play a simple run to see how GridSim works(simple button)
+* record data(record button)
+* replay a previously recorded run(replay button)
+
+After you press the 'record' button you will have to complete the following paths:
+
+* replay_path = the path where you want your replay data to be stored
+* state_buf_path = the path where you want the car data to be stored(position, speed, steering angle and so on)
+* all of the above paths must be completed, also you enter nonexistent paths(will be created at runtime)
+
+In the near future we will implement features of recording images from the replay.
 
 ## Built with
 

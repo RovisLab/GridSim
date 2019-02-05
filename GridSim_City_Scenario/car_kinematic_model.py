@@ -16,10 +16,13 @@ from traffic_car import TrafficCar
 
 class Simulator:
     def __init__(self, screen, screen_width, screen_height,
-                 highway=False,
+                 sensor_size=150,
                  activations=False,
                  traffic=True,
-                 record_data=False):
+                 record_data=False,
+                 replay_data_path=None,
+                 state_buf_path=None,
+                 sensors=False):
         pygame.init()
         self.screen_width = screen_width
         self.screen_height = screen_height
@@ -49,22 +52,16 @@ class Simulator:
         self.object_car_image = pygame.image.load(self.object_car_image_path).convert_alpha()
         self.object_car_image = pygame.transform.scale(self.object_car_image, (42, 20))
 
-        # Check if the sim is in highway mode
-        self.highway = highway
         self.print_activations = activations
         self.model_path = os.path.join(self.current_dir, 'used_models/activations_model.h5')
         if os.path.exists(self.model_path) is False:
             raise OSError("model to path doesn't exists")
 
-        if highway:
-            self.background = pygame.image.load(
-                os.path.join(self.current_dir, "resources/backgrounds/highway.png")).convert()
-        else:
-            self.background = pygame.image.load(
-                os.path.join(self.current_dir, "resources/backgrounds/maps_overlay.png")).convert()
-            self.background = pygame.transform.scale(self.background, (2500, 1261))
-
+        self.background = pygame.image.load(
+            os.path.join(self.current_dir, "resources/backgrounds/maps_overlay.png")).convert()
+        self.background = pygame.transform.scale(self.background, (2500, 1261))
         self.bgWidth, self.bgHeight = self.background.get_rect().size
+
         pygame.font.init()
         self.myfont = pygame.font.SysFont('Comic Sans MS', 30)
 
@@ -75,13 +72,17 @@ class Simulator:
         self.exit = False
         self.record_data = record_data
         self.traffic = traffic
+        self.replay_data_path = replay_data_path
+        self.state_buf_path = state_buf_path
+        self.sensors = sensors
+        self.sensor_size = sensor_size
 
     def optimized_front_sensor(self, car, object_mask, act_mask, display_obstacle_on_sensor=False):
         # act_mask is a separate image where you can only see what the sensor sees
         center_rect = Collision.center_rect(self.screen_width, self.screen_height)
         mid_of_front_axle = Collision.point_rotation(car, -1, 16, center_rect)
 
-        arc_points = get_arc_points(mid_of_front_axle, 150, radians(90 + car.angle), radians(270 + car.angle), 320)
+        arc_points = get_arc_points(mid_of_front_axle, 150, radians(90 + car.angle), radians(270 + car.angle), self.sensor_size)
 
         offroad_edge_points = []
 
@@ -116,7 +117,7 @@ class Simulator:
         center_rect = Collision.center_rect(self.screen_width, self.screen_height)
         mid_of_rear_axle = Collision.point_rotation(car, 65, 16, center_rect)
 
-        arc_points = get_arc_points(mid_of_rear_axle, 150, radians(-90 + car.angle), radians(90 + car.angle), 320)
+        arc_points = get_arc_points(mid_of_rear_axle, 150, radians(-90 + car.angle), radians(90 + car.angle), self.sensor_size)
 
         offroad_edge_points = []
 
@@ -168,9 +169,7 @@ class Simulator:
 
         return layer_names, image_buf, state_buf, activation_model
 
-    def draw_sim_environment(self, car, object_mask, cbox_front_sensor, cbox_rear_sensor, print_coords=False,
-                             record_coords=False, file_path=None, file_name=None,
-                             record_traffic_car_coords=False, traffic_file_path=None, traffic_file_name=None):
+    def draw_sim_environment(self, car, object_mask, cbox_front_sensor, cbox_rear_sensor, print_coords=False):
         # Drawing
         stagePosX = car.position[0] * self.ppu
         stagePosY = car.position[1] * self.ppu
@@ -213,34 +212,21 @@ class Simulator:
             self.screen.blit(text4, (20, 110))
             self.screen.blit(text5, (20, 140))
 
-        # Record ego_car positions in GridSim
-        if record_coords is True:
-            if file_name is None:
-                print('no file name given')
-                quit()
-            if file_path is None:
-                print('no file path given')
-                quit()
-            write_data(file_path + '/' + file_name, round(stagePosX, 2), round(stagePosY, 2), round(rel_x, 2),
-                       round(rel_y, 2), (round(car.velocity.x, 2) * self.ppu/4))
-
-        # Record traffic car trajectory
-        if record_traffic_car_coords is True:
-            if traffic_file_name is None:
-                print('no file name given')
-                quit()
-            if traffic_file_path is None:
-                print('no file path given')
-                quit()
-            write_data(traffic_file_path + '/' + traffic_file_name, stagePosX, stagePosY, car.angle)
-
         return stagePosX, stagePosY, rel_x, rel_y
+
+    @staticmethod
+    def return_to_menu():
+        from car_kinematic_city_menu import Menu
+        menu = Menu()
+        menu.main_menu()
+        return
 
     def key_handler(self, car, dt, rs_pos_list):
         # User input
         pressed = pygame.key.get_pressed()
         if pressed[pygame.K_ESCAPE]:
             self.return_to_menu()
+            quit()
         if pressed[pygame.K_r]:
             car.reset_car(rs_pos_list)
         if pressed[pygame.K_UP]:
@@ -306,15 +292,18 @@ class Simulator:
     def run(self):
         # place car on road
         car = Car(5, 27)
-        if self.highway:
-            car.angle = 270
 
         # initialize traffic
         self.init_traffic_cars()
 
+        if self.sensors is True:
+            sen = True
+        else:
+            sen = False
+
         # sensor checkboxes on top right corner
-        cbox_front_sensor = Checkbox(self.screen_width - 200, 10, 'Enable front sensor', False)
-        cbox_rear_sensor = Checkbox(self.screen_width - 200, 35, 'Enable rear sensor', False)
+        cbox_front_sensor = Checkbox(self.screen_width - 200, 10, 'Enable front sensor', sen)
+        cbox_rear_sensor = Checkbox(self.screen_width - 200, 35, 'Enable rear sensor', sen)
 
         # reset position list -> to be updated
         rs_pos_list = [[650, 258, 90.0], [650, 258, 270.0], [0, 0, 180.0], [0, 0, 0.0], [302, 200, 45.0],
@@ -369,11 +358,7 @@ class Simulator:
             if cbox_rear_sensor.isChecked():
                 self.optimized_rear_sensor(car, object_mask, act_mask, display_obstacle_on_sensor=True)
 
-            if self.record_data is True:
-                image_name = 'image_' + str(index_image) + '.png'
-                index_image += 1
-
-            # -------------------------------------------print_activations_test----------------------------------------
+            # -------------------------------------------print_activations----------------------------------------
             if self.print_activations is True:
                 image_rect = pygame.Rect((390, 110), (500, 500))
                 sub = self.screen.subsurface(image_rect)
@@ -384,17 +369,24 @@ class Simulator:
                 print_activations(activations, layer_names, desired_layer_output)
             # ----------------------------------------------------------
 
+            # RECORD TAB
             if self.record_data is True:
-                # RECORD TAB
+                image_name = 'image_' + str(index_image) + '.png'
+                index_image += 1
+
+                if self.state_buf_path is None:
+                    raise OSError('state_buf_path is empty.')
+                if self.replay_data_path is None:
+                    raise OSError('replay_data_path is empty.')
 
                 actions = [car.position.x, car.position.y, float(round(car.angle, 3)), float(round(car.acceleration, 3)),
                            float(round(car.velocity.x, 3)), image_name]
 
                 # Save state_buf
-                write_state_buf(self.current_dir.replace('\\', '/') + '/GridSim data/state_buf.csv', actions)
+                write_state_buf(self.state_buf_path, actions)
 
                 # Save replay
-                write_data(self.current_dir.replace('\\', '/') + '/GridSim data/replay_data.csv', car.position, car.angle)
+                write_data(self.replay_data_path, car.position, car.angle)
 
             pygame.display.update()
             self.clock.tick(self.ticks)
@@ -404,5 +396,8 @@ class Simulator:
 
 if __name__ == '__main__':
     screen = pygame.display.set_mode((1280, 720))
-    sim = Simulator(screen, 1280, 720, record_data=False, traffic=True, activations=False)
+    STATE_BUF_PATH = '/GridSim Data/state_buf.csv'
+    REPLAY_DATA_PATH = '/GridSim Data/replay_data.csv'
+    sim = Simulator(screen, 1280, 720, record_data=True, traffic=True, activations=False,
+                    replay_data_path=REPLAY_DATA_PATH, state_buf_path=STATE_BUF_PATH)
     sim.run()
