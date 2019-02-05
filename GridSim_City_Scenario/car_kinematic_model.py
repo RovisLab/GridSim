@@ -77,6 +77,64 @@ class Simulator:
         self.sensors = sensors
         self.sensor_size = sensor_size
 
+    def on_road(self, car, screen):
+        Ox = 32
+        Oy = 16
+        center_world_x = int(self.screen_width / 2)
+        center_world_y = int(self.screen_height / 2)
+
+        bot_right_x = center_world_x + int(Ox * cos(radians(-car.angle))) - int(Oy * sin(radians(-car.angle)))
+        bot_right_y = center_world_y + int(Ox * sin(radians(-car.angle))) + int(Oy * cos(radians(-car.angle)))
+
+        bot_left_x = center_world_x - int(Ox * cos(radians(-car.angle))) - int(Oy * sin(radians(-car.angle)))
+        bot_left_y = center_world_y - int(Ox * sin(radians(-car.angle))) + int(Oy * cos(radians(-car.angle)))
+
+        top_left_x = center_world_x - int(Ox * cos(radians(-car.angle))) + int(Oy * sin(radians(-car.angle)))
+        top_left_y = center_world_y - int(Ox * sin(radians(-car.angle))) - int(Oy * cos(radians(-car.angle)))
+
+        top_right_x = center_world_x + int(Ox * cos(radians(-car.angle))) + int(Oy * sin(radians(-car.angle)))
+        top_right_y = center_world_y + int(Ox * sin(radians(-car.angle))) - int(Oy * cos(radians(-car.angle)))
+
+        if (np.array_equal(screen.get_at((bot_right_x, bot_right_y)), self.bkd_color) or np.array_equal
+            (screen.get_at((bot_left_x, bot_left_y)), self.bkd_color) or
+                np.array_equal(screen.get_at((top_left_x, top_left_y)), self.bkd_color) or
+                np.array_equal(screen.get_at((top_right_x, top_right_y)), self.bkd_color)):
+            Collision.offroad(car)
+            return False
+        else:
+            return True
+
+    def compute_sensor_distance(self, car, base_point, sensor_length, sensor_angle, data_screen, draw_screen):
+        end_point_x = base_point[0] + sensor_length * cos(radians(sensor_angle - car.angle))
+        end_point_y = base_point[1] + sensor_length * sin(radians(sensor_angle - car.angle))
+
+        for index in range(0, sensor_length):
+            coll_point_x = base_point[0] + index * cos(radians(sensor_angle - car.angle))
+            coll_point_y = base_point[1] + index * sin(radians(sensor_angle - car.angle))
+
+            if np.array_equal(data_screen.get_at((int(coll_point_x), int(coll_point_y))), self.bkd_color):
+                break
+
+        pygame.draw.line(draw_screen, (0, 255, 0), base_point, (coll_point_x, coll_point_y), True)
+        pygame.draw.line(draw_screen, (255, 0, 0), (coll_point_x, coll_point_y), (end_point_x, end_point_y), True)
+
+        coll_point = (coll_point_x, coll_point_y)
+
+        distance = euclidean_norm(base_point, coll_point)
+        # print(distance)
+
+        return distance
+
+    def enable_sensor(self, car, data_screen, draw_screen, rays_nr):
+        center_rect = Collision.center_rect(self.screen_width, self.screen_height)
+        mid_of_front_axle = Collision.point_rotation(car, 0, 16, center_rect)
+        distance = np.array([])
+        for angle_index in range(120, 240, int(round(120/rays_nr))):
+            distance = np.append(distance,
+                                 self.compute_sensor_distance(car, mid_of_front_axle, 200, angle_index, data_screen,
+                                                              draw_screen))
+        return distance
+
     def optimized_front_sensor(self, car, object_mask, act_mask, display_obstacle_on_sensor=False):
         # act_mask is a separate image where you can only see what the sensor sees
         center_rect = Collision.center_rect(self.screen_width, self.screen_height)
@@ -169,7 +227,7 @@ class Simulator:
 
         return layer_names, image_buf, state_buf, activation_model
 
-    def draw_sim_environment(self, car, object_mask, cbox_front_sensor, cbox_rear_sensor, print_coords=False):
+    def draw_sim_environment(self, car, object_mask, cbox_front_sensor=None, cbox_rear_sensor=None, print_coords=False):
         # Drawing
         stagePosX = car.position[0] * self.ppu
         stagePosY = car.position[1] * self.ppu
@@ -183,8 +241,9 @@ class Simulator:
         self.screen.blit(self.background, (rel_x - self.bgWidth, rel_y))
         self.screen.blit(self.background, (rel_x, rel_y - self.bgHeight))
 
-        cbox_front_sensor.update()
-        cbox_rear_sensor.update()
+        if cbox_front_sensor is not None and cbox_rear_sensor is not None:
+            cbox_front_sensor.update()
+            cbox_rear_sensor.update()
 
         rotated = pygame.transform.rotate(self.car_image, car.angle)
         rot_rect = rotated.get_rect()
@@ -306,9 +365,13 @@ class Simulator:
         cbox_rear_sensor = Checkbox(self.screen_width - 200, 35, 'Enable rear sensor', sen)
 
         # reset position list -> to be updated
-        rs_pos_list = [[650, 258, 90.0], [650, 258, 270.0], [0, 0, 180.0], [0, 0, 0.0], [302, 200, 45.0],
-                       [40, 997, 0.0], [40, 997, 180.0], [100, 997, 0.0], [100, 997, 180.0], [400, 998, 0.0],
-                       [400, 998, 180.0], [385, 315, 135.0]]
+        # rs_pos_list = [[650, 258, 90.0], [650, 258, 270.0], [0, 0, 180.0], [0, 0, 0.0], [302, 200, 45.0],
+        #                [40, 997, 0.0], [40, 997, 180.0], [100, 997, 0.0], [100, 997, 180.0], [400, 998, 0.0],
+        #                [400, 998, 180.0], [385, 315, 135.0]]
+
+        rs_pos_list = [[6, 27, 0.0], [5, 27, 180.0], [4, 24, 180.0], [4, 23, 0.0], [5, 27, 90.0], [5, 27, 0.0]]
+        #               [40, 997, 0.0], [40, 997, 180.0], [100, 997, 0.0], [100, 997, 180.0], [400, 998, 0.0],
+        #               [400, 998, 180.0], [385, 315, 135.0]]
 
         # boolean variable needed to check for single-click press
         mouse_button_pressed = False
@@ -369,6 +432,9 @@ class Simulator:
                 print_activations(activations, layer_names, desired_layer_output)
             # ----------------------------------------------------------
 
+            #if not self.on_road(car, object_mask):
+            #    car.reset_car(rs_pos_list)
+
             # RECORD TAB
             if self.record_data is True:
                 image_name = 'image_' + str(index_image) + '.png'
@@ -394,10 +460,10 @@ class Simulator:
         pygame.quit()
 
 
-if __name__ == '__main__':
-    screen = pygame.display.set_mode((1280, 720))
-    STATE_BUF_PATH = '/GridSim Data/state_buf.csv'
-    REPLAY_DATA_PATH = '/GridSim Data/replay_data.csv'
-    sim = Simulator(screen, 1280, 720, record_data=True, traffic=True, activations=False,
-                    replay_data_path=REPLAY_DATA_PATH, state_buf_path=STATE_BUF_PATH)
-    sim.run()
+# if __name__ == '__main__':
+#     screen = pygame.display.set_mode((1280, 720))
+#     STATE_BUF_PATH = '/GridSim Data/state_buf.csv'
+#     REPLAY_DATA_PATH = '/GridSim Data/replay_data.csv'
+#     sim = Simulator(screen, 1280, 720, record_data=True, traffic=True, activations=False,
+#                     replay_data_path=REPLAY_DATA_PATH, state_buf_path=STATE_BUF_PATH)
+#     sim.run()

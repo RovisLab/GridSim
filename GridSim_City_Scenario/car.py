@@ -20,8 +20,10 @@ class Car:
 
     def reset_car(self, rs_pos_list):
         rand_pos = random.choice(rs_pos_list)
-        self.position = (rand_pos[0], rand_pos[1])
         self.angle = rand_pos[2]
+        self.position = (rand_pos[0], rand_pos[1])
+        self.velocity.x = 0
+        self.velocity.y = 0
 
     def accelerate(self, dt):
         if self.velocity.x < 0:
