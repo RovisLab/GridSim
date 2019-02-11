@@ -3,6 +3,7 @@ import pygame
 
 class Checkbox:
     def __init__(self, x, y, text, checked=False):
+        self.position = (x, y)
         self.screen = pygame.display.get_surface()
         self.checked = checked
         self.text = text

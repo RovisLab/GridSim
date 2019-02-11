@@ -10,3 +10,7 @@ screen_height = 720
 car_height = 48
 car_width = 24
 ppu = 16
+sensor_size = 50
+
+active_color = (0, 200, 0)
+inactive_color = (93, 109, 126)

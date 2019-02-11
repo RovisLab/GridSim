@@ -12,6 +12,7 @@ from keras import models
 from print_activations import print_activations, init_activations_display_window
 from obstacle_list import update_object_mask
 from traffic_car import TrafficCar
+import cv2
 
 
 class Simulator:
@@ -284,6 +285,8 @@ class Simulator:
         # User input
         pressed = pygame.key.get_pressed()
         if pressed[pygame.K_ESCAPE]:
+            if self.print_activations is True:
+                cv2.destroyAllWindows()
             self.return_to_menu()
             quit()
         if pressed[pygame.K_r]:
@@ -364,14 +367,7 @@ class Simulator:
         cbox_front_sensor = Checkbox(self.screen_width - 200, 10, 'Enable front sensor', sen)
         cbox_rear_sensor = Checkbox(self.screen_width - 200, 35, 'Enable rear sensor', sen)
 
-        # reset position list -> to be updated
-        # rs_pos_list = [[650, 258, 90.0], [650, 258, 270.0], [0, 0, 180.0], [0, 0, 0.0], [302, 200, 45.0],
-        #                [40, 997, 0.0], [40, 997, 180.0], [100, 997, 0.0], [100, 997, 180.0], [400, 998, 0.0],
-        #                [400, 998, 180.0], [385, 315, 135.0]]
-
         rs_pos_list = [[6, 27, 0.0], [5, 27, 180.0], [4, 24, 180.0], [4, 23, 0.0], [5, 27, 90.0], [5, 27, 0.0]]
-        #               [40, 997, 0.0], [40, 997, 180.0], [100, 997, 0.0], [100, 997, 180.0], [400, 998, 0.0],
-        #               [400, 998, 180.0], [385, 315, 135.0]]
 
         # boolean variable needed to check for single-click press
         mouse_button_pressed = False
@@ -404,7 +400,6 @@ class Simulator:
             # DRAWING
             stagePos = self.draw_sim_environment(car, object_mask, cbox_front_sensor, cbox_rear_sensor,
                                                  print_coords=True)
-            relPos = (stagePos[2], stagePos[3])
             stagePos = (stagePos[0], stagePos[1])
 
             # UPDATE
@@ -432,8 +427,8 @@ class Simulator:
                 print_activations(activations, layer_names, desired_layer_output)
             # ----------------------------------------------------------
 
-            #if not self.on_road(car, object_mask):
-            #    car.reset_car(rs_pos_list)
+            # if not self.on_road(car, object_mask):
+            #     car.reset_car(rs_pos_list)
 
             # RECORD TAB
             if self.record_data is True:

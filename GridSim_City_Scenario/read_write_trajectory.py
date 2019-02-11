@@ -48,7 +48,6 @@ def read_data_from_dataset(fname, desired_data):
 
 
 def write_data(fname, *args):
-    marker = check_valid_csv(fname)
     with open(fname, "a") as csvfile:
         writer = csv.writer(csvfile, lineterminator='\n')
         export_list = np.array([])
