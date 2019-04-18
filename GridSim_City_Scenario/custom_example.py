@@ -60,7 +60,9 @@ if __name__ == '__main__':
     # EXAMPLE:
     # from replay import Replay
     # replay = Replay(screen, 1280, 720)
-    # replay.record_from_replay("REPLAY_PATH", save_sensor_frame=True,
+    # replay.record_from_replay("D:/GridSim Dataset/run_replays/training_with_reference/run1.csv",
+    #                           save_sensor_frame=True,
     #                           save_debug_frame=True,
-    #                           save_sensor_frame_path="PATH_WHERE_TO_SAVE_SENSOR_FRAME",
-    #                           save_debug_frame_path="PATH_WHERE_TO_SAVE_DEBUG_FRAME")
+    #                           save_sensor_frame_path="D:/GridSim Dataset/test_contest/sensor",
+    #                           save_debug_frame_path="D:/GridSim Dataset/test_contest/debug",
+    #                           display_obstacle_on_screen=True)
