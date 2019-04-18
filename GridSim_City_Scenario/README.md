@@ -27,9 +27,28 @@ After you press the 'record' button you will have to complete the following path
 
 * replay_path = the path where you want your replay data to be stored
 * state_buf_path = the path where you want the car data to be stored(position, speed, steering angle and so on)
-* all of the above paths must be completed, also you enter nonexistent paths(will be created at runtime)
+* all of the above paths must be completed, also you can enter nonexistent paths(will be created at runtime)
 
-In the near future we will implement features of recording images from the replay.
+In the near future we will implement features of recording images from the main menu.  
+  
+Inside the project you can find a custom_example.py.   
+  
+Additional information about creating a custom implementation:  
+  
+* GridSim flow:  
+```  
+|--run (main simulator loop)  
+   |--variable update (time, traffic update and event handler)  
+   |--logic (key handler)  
+   |--drawing (environment creation, sensor drawing)  
+   |--update (ego car update, traffic update, sensor update)  
+   |--custom implementation tab  
+	  |--here is where your code should be  
+   |--data recording tab (record data)  
+```  
+  
+* in order to not disrupt the flow of the application, your implementation must be inside custom implementation tab.  
+* in the custom_example.py you can find an example on how to access/modify GridSim data and how to record/replay data without the menu.   
 
 ## Built with
 

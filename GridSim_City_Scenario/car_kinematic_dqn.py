@@ -21,7 +21,7 @@ class DqnSimulator(Simulator):
                  rays_nr=15):
         super().__init__(screen, screen_width, screen_height, sensor_size=sensor_size, activations=activations,
                          traffic=traffic, record_data=record_data, replay_data_path=replay_data_path,
-                         state_buf_path=state_buf_path, sensors=sensors)
+                         state_buf_path=state_buf_path, sensors=sensors, enabled_menu=True)
         self.checkpoint_path = self.current_dir + '/used_models/dqn/gridsim-dqn'
         self.rays_nr = rays_nr
         pygame.display.set_caption("Deep Reinforcement Learning")

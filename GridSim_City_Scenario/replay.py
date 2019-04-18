@@ -7,15 +7,16 @@ from obstacle_list import update_object_mask
 from read_write_trajectory import save_frame, resize_image
 import numpy as np
 import os
-import copy
 
 
 class Replay(Simulator):
-    def __init__(self, screen, screen_width, screen_height, activations, traffic, sensors, sensor_size):
-        super().__init__(screen, screen_width, screen_height, activations=activations, traffic=traffic, sensors=sensors,
-                         sensor_size=sensor_size)
-        # self.background = pygame.image.load("resources/backgrounds/maps_overlay.png").convert()
-        # self.background = pygame.transform.scale(self.background, (2500, 1261))
+
+    def __init__(self, screen, screen_width, screen_height, car_x=5, car_y=27, sensor_size=50, rays_nr=8,
+                 activations=False, traffic=True, record_data=False, replay_data_path=None, state_buf_path=None,
+                 sensors=False, distance_sensor=False, enabled_menu=False):
+        super().__init__(screen, screen_width, screen_height, car_x, car_y, sensor_size, rays_nr, activations, traffic,
+                         record_data, replay_data_path, state_buf_path, sensors, distance_sensor, enabled_menu)
+
         self.bgWidth, self.bgHeight = self.background.get_rect().size
 
     @staticmethod
@@ -54,7 +55,12 @@ class Replay(Simulator):
             quit()
 
     def replay(self, car_data_path, enable_trajectory=False):
-
+        """
+        Deprecated and will be removed
+        :param car_data_path:
+        :param enable_trajectory:
+        :return:
+        """
         if os.path.exists(car_data_path) is False:
             raise OSError('car_data_path does not exists')
 
@@ -146,14 +152,22 @@ class Replay(Simulator):
 
     def record_from_replay(self, replay_csv_path, save_simulator_frame_path=None, save_sensor_frame_path=None,
                            save_debug_frame_path=None, save_sensor_frame=False, save_simulator_frame=False,
-                           save_debug_frame=False, draw_trajectory=False, traffic=False):
+                           save_debug_frame=False, draw_trajectory=False, traffic=False, display_obstacle_on_sensor=False):
+        """
+        Record images from runs
+        :param replay_csv_path: path to replay csv
+        :param save_simulator_frame_path: path where to save simulator frame
+        :param save_sensor_frame_path: path where to save sensor frame
+        :param save_debug_frame_path: path where to save debug(simulator and sensor) frame
+        :param save_sensor_frame: bool
+        :param save_simulator_frame: bool
+        :param save_debug_frame: bool
+        :param draw_trajectory: bool
+        :param traffic: bool(if run was with traffic)
+        :return:
+        """
         if traffic is True:
             self.init_traffic_cars()
-
-        # place car on road
-        car = Car(5, 27, 270)
-        if self.highway:
-            car.angle = 270
 
         if os.path.exists(replay_csv_path) is False:
             raise OSError("path to replay csv doesn't exists")
@@ -163,9 +177,6 @@ class Replay(Simulator):
         index = 0
         object_mask = pygame.Surface((self.screen_width, self.screen_height))
         activation_mask = pygame.Surface((self.screen_width, self.screen_height))
-        copy_sensor_path = copy.copy(save_sensor_frame_path)
-        copy_debug_path = copy.copy(save_debug_frame_path)
-        copy_simulator_path = copy.copy(save_simulator_frame_path)
 
         while not self.exit:
             collision_list = [False] * len(self.traffic_list)
@@ -174,8 +185,8 @@ class Replay(Simulator):
                 if event.type == pygame.QUIT:
                     self.exit = True
 
-            car.position = (car_data[index][0], car_data[index][1])
-            car.angle = car_data[index][2]
+            self.car.position = (car_data[index][0], car_data[index][1])
+            self.car.angle = car_data[index][2]
 
             # index = (index + 1) % len(car_data)
             index = index + 1
@@ -186,8 +197,8 @@ class Replay(Simulator):
             # car.update(dt)
 
             # Drawing
-            stagePosX = car.position[0] * self.ppu
-            stagePosY = car.position[1] * self.ppu
+            stagePosX = self.car.position[0] * self.ppu
+            stagePosY = self.car.position[1] * self.ppu
 
             rel_x = stagePosX % self.bgWidth
             rel_y = stagePosY % self.bgHeight
@@ -198,7 +209,7 @@ class Replay(Simulator):
             self.screen.blit(self.background, (rel_x - self.bgWidth, rel_y))
             self.screen.blit(self.background, (rel_x, rel_y - self.bgHeight))
 
-            rotated = pygame.transform.rotate(self.car_image, car.angle)
+            rotated = pygame.transform.rotate(self.car_image, self.car.angle)
             center_x = int(self.screen_width / 2) - int(rotated.get_rect().width / 2)
             center_y = int(self.screen_height / 2) - int(rotated.get_rect().height / 2)
 
@@ -217,8 +228,8 @@ class Replay(Simulator):
                 self.traffic_movement(collision_list, object_mask, stagePos)
 
             activation_mask.fill((0, 0, 0))
-            self.optimized_front_sensor(car, object_mask, activation_mask, display_obstacle_on_sensor=False)
-            self.optimized_rear_sensor(car, object_mask, activation_mask, display_obstacle_on_sensor=False)
+            self.optimized_front_sensor(self.car, object_mask, activation_mask, display_obstacle_on_sensor=display_obstacle_on_sensor)
+            self.optimized_rear_sensor(self.car, object_mask, activation_mask, display_obstacle_on_sensor=display_obstacle_on_sensor)
 
             image_name = 'image_' + str(index) + '.png'
             image_rect = pygame.Rect((440, 160), (400, 400))
@@ -229,8 +240,8 @@ class Replay(Simulator):
 
                 for add_elem in range(5, 50, 10):
                     delta_position = (
-                        car.position[0] - car_data[index + add_elem][0],
-                        car.position[1] - car_data[index + add_elem][1])
+                        self.car.position[0] - car_data[index + add_elem][0],
+                        self.car.position[1] - car_data[index + add_elem][1])
 
                     traj_point = (center_screen[0] + int(delta_position[0] * self.ppu),
                                   center_screen[1] + int(delta_position[1] * self.ppu))
@@ -249,7 +260,6 @@ class Replay(Simulator):
                     os.makedirs(save_sensor_frame_path)
 
                 activation_sub = activation_mask.subsurface(image_rect)
-                # activation_sub = pygame.transform.scale(activation_sub, (200, 200))
                 activation_sub = resize_image(activation_sub, (200, 200))
                 save_frame(activation_sub, image_name, save_sensor_frame_path)
 

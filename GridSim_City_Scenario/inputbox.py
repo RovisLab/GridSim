@@ -19,7 +19,7 @@ def return_to_menu():
     return
 
 
-def display_box(screen, message, position):
+def display_box(screen, message, position, inside_c=config.inactive_color, border_c=config.active_color):
     " Print a message in a box in the middle of the screen "
     fontobject = pygame.font.SysFont(config.font, 18)
     position_rect = pygame.Rect(position[0], position[1], 300, 27)
@@ -28,8 +28,8 @@ def display_box(screen, message, position):
     active_surface = pygame.Surface((position_rect.width, position_rect.height))
     active_surface.set_alpha(225)
 
-    pygame.draw.rect(active_surface, config.inactive_color, position_rect)
-    pygame.draw.rect(screen, config.active_color, border_rect, 1)
+    pygame.draw.rect(active_surface, inside_c, position_rect)
+    pygame.draw.rect(screen, border_c, border_rect, 1)
 
     screen.blit(active_surface, position_rect.topleft)
 
@@ -39,10 +39,11 @@ def display_box(screen, message, position):
     pygame.display.flip()
 
 
-def ask(screen, question, input, position, nr_rows, current_box):
+def ask(screen, question, input, position, nr_rows, current_box, inside_color=config.inactive_color,
+        border_color=config.active_color):
     " ask(screen, question) -> answer "
     pygame.font.init()
-    display_box(screen, question + ": " + input, position)
+    display_box(screen, question + ": " + input, position, inside_color, border_color)
     while 1:
         inkey = get_key()
         # if user presses down change current box down
@@ -81,4 +82,4 @@ def ask(screen, question, input, position, nr_rows, current_box):
             input += chr(inkey)
         # clear shift key use only the keyboard
 
-        display_box(screen, question + ": " + input, position)
+        display_box(screen, question + ": " + input, position, inside_color, border_color)

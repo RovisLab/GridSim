@@ -41,8 +41,9 @@ class Menu:
         self.exit_button = Button("exit", (500, 450), (350, 50), config.inactive_color, (200, 0, 0))
 
         self.activation_cbox = Checkbox(1000, 50, "Print activations", True)
-        self.sensors_cbox = Checkbox(1000, 70, "Enable sensors", True)
-        self.traffic_cbox = Checkbox(1000, 90, "Enable traffic", True)
+        self.sensors_cbox = Checkbox(1000, 70, "Enable visual sensors", True)
+        self.distance_sensor_cbox = Checkbox(1000, 90, "Enable distance sensor", False)
+        self.traffic_cbox = Checkbox(1000, 110, "Enable traffic", True)
 
         self.ga_buttons_interactions = False
         self.drl_buttons_interactions = False
@@ -149,7 +150,9 @@ class Menu:
                                 activations=self.activation_cbox.isChecked(), record_data=False,
                                 sensor_size=int(inputs[0]),
                                 traffic=self.traffic_cbox.isChecked(),
-                                sensors=self.sensors_cbox.isChecked())
+                                sensors=self.sensors_cbox.isChecked(),
+                                distance_sensor=self.distance_sensor_cbox.isChecked(),
+                                enabled_menu=True)
                 sim.run()
                 quit()
         else:
@@ -182,7 +185,9 @@ class Menu:
                                 state_buf_path=str(inputs[1]),
                                 replay_data_path=str(inputs[2]),
                                 traffic=self.traffic_cbox.isChecked(),
-                                sensors=self.sensors_cbox.isChecked())
+                                sensors=self.sensors_cbox.isChecked(),
+                                distance_sensor=self.distance_sensor_cbox.isChecked(),
+                                enabled_menu=True)
                 rec.run()
                 quit()
         else:
@@ -214,6 +219,7 @@ class Menu:
                                 activations=self.activation_cbox.isChecked(),
                                 traffic=self.traffic_cbox.isChecked(),
                                 sensors=self.sensors_cbox.isChecked(),
+                                distance_sensor=self.distance_sensor_cbox.isChecked(),
                                 sensor_size=int(inputs[0]))
                 replay.replay(inputs[1], enable_trajectory=True)
                 quit()
@@ -407,7 +413,10 @@ class Menu:
         if pygame.mouse.get_pressed()[0]:
             if self.sensors_cbox.onCheckbox(mouse_pos):
                 self.sensors_cbox.changeState()
+            elif self.distance_sensor_cbox.onCheckbox(mouse_pos):
+                self.distance_sensor_cbox.changeState()
         self.sensors_cbox.update()
+        self.distance_sensor_cbox.update()
 
     def traffic_cbox_interaction(self):
         mouse_pos = pygame.mouse.get_pos()
@@ -425,9 +434,8 @@ class Menu:
             if self.current_background_frame is not None:
                 self.screen.blit(self.current_background_frame, (0, 0))
                 # self.screen.fill(config.background_color)  # let menu simple
-            self.buttons_interactions()
             self.checkbox_interactions()
-
+            self.buttons_interactions()
             pygame.display.update()
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
