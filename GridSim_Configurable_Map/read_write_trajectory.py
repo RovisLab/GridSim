@@ -17,8 +17,8 @@ def read_replay_coords(fname):
 
 def write_replay_data(fname, *args):
     marker = check_valid_csv(fname)
-    if marker == 'not_empty':
-        raise OSError(fname + ' is not empty. Overwrite avoided.')
+    # if marker == 'not_empty':
+    #     raise OSError(fname + ' is not empty. Overwrite avoided.')
 
     with open(fname, "a") as csvfile:
         writer = csv.writer(csvfile, lineterminator='\n')
@@ -52,7 +52,7 @@ def check_valid_csv(fname):
 
 
 def write_state_buf(fname, args):
-    fieldnames = ['CarPositionX', 'CarPositionY', 'CarAngle', 'Acceleration', 'Velocity']
+    fieldnames = ['CarPositionX', 'CarPositionY', 'CarAngle', 'Acceleration', 'Velocity', 'Action', 'ImageName']
     flag = check_valid_csv(fname)
     if flag == 'empty':
         try:
@@ -70,8 +70,9 @@ def write_state_buf(fname, args):
                                  'CarPositionY': args[1],
                                  'CarAngle': args[2],
                                  'Acceleration': args[3],
-                                 'Velocity': args[4]})
-                                 #'ImageName': args[5]})
+                                 'Velocity': args[4],
+                                 'Action': args[5],
+                                 'ImageName': args[6]})
         except:
             pass
 
@@ -83,7 +84,9 @@ def save_frame(screen, frame_name, path):
     except OSError:
         pass
 
-    screendata = pygame.surfarray.array3d(screen)
+    sub_rect = pygame.Rect((385, 150), (500, 445))
+    save_screen = screen.subsurface(sub_rect)
+    screendata = pygame.surfarray.array3d(save_screen)
     screendata = np.rot90(screendata, axes=(0, 1))
     screendata = np.flipud(screendata)
     img = Image.fromarray(screendata)

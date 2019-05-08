@@ -10,7 +10,8 @@ from tracker import Tracker
 from print_activations import print_activations, init_activations_display_window
 from keras.models import load_model
 from keras.models import Model
-from read_write_trajectory import write_replay_data
+from read_write_trajectory import write_replay_data, write_state_buf, read_replay_coords, save_frame
+import threading
 
 
 class ConfigurableSimulator:
@@ -54,6 +55,7 @@ class ConfigurableSimulator:
         self.clock = pygame.time.Clock()
         self.ticks = 60
         self.show_activ = show_activations
+        self.received_action = None
 
         if show_minimap is True:
             self.tracker = Tracker(self.map_width, self.map_height, self.ppu, self.car, self.car_image, map_path,
@@ -148,26 +150,59 @@ class ConfigurableSimulator:
                     pygame.draw.aaline(self.screen, (255, 0, 0), rear_offroad_edge_points[index], rear_arc_points[index], True)
                     pygame.draw.aaline(sensor_mask, (255, 0, 0), rear_offroad_edge_points[index], rear_arc_points[index], True)
 
+    def action_handler(self, dt):
+
+        if self.received_action is not None:
+            received_actions = set(self.received_action)
+
+            if received_actions.intersection(set(['up'])):
+                print('up')
+                self.car.accelerate(dt)
+            elif received_actions.intersection(set(['down'])):
+                print('down')
+                self.car.brake(dt)
+            elif received_actions.intersection(set(['space'])):
+                self.car.handbrake(dt)
+            else:
+                print('cruise')
+                self.car.cruise(dt)
+            if received_actions.intersection(set(['right'])):
+                print('right')
+                self.car.steer_right(dt)
+            elif received_actions.intersection(set(['left'])):
+                print('left')
+                self.car.steer_left(dt)
+            else:
+                self.car.no_steering()
+
     def key_handler(self, dt, rs_pos_list):
         # User input
         pressed = pygame.key.get_pressed()
+        action = []
 
         if pressed[pygame.K_r]:
             self.car.reset_car(rs_pos_list)
-        if pressed[pygame.K_UP]:
+        if pressed[pygame.K_UP] or self.received_action == 'up':
+            action.append('up')
             self.car.accelerate(dt)
-        elif pressed[pygame.K_DOWN]:
+        elif pressed[pygame.K_DOWN] or self.received_action == 'down':
+            action.append('down')
             self.car.brake(dt)
-        elif pressed[pygame.K_SPACE]:
+        elif pressed[pygame.K_SPACE] or self.received_action == 'space':
+            action.append('space')
             self.car.handbrake(dt)
         else:
             self.car.cruise(dt)
-        if pressed[pygame.K_RIGHT]:
+        if pressed[pygame.K_RIGHT] or self.received_action == 'right':
+            action.append('right')
             self.car.steer_right(dt)
-        elif pressed[pygame.K_LEFT]:
+        elif pressed[pygame.K_LEFT] or self.received_action == 'left':
+            action.append('left')
             self.car.steer_left(dt)
         else:
             self.car.no_steering()
+
+        return action
 
     def event_handler(self, cbox_front_sensor, cbox_rear_sensor, mouse_button_pressed):
         # Event queue
@@ -184,7 +219,7 @@ class ConfigurableSimulator:
             if event.type == pygame.MOUSEBUTTONUP:
                 mouse_button_pressed = False
 
-    def draw_sim_environment(self, sensor_mask, cbox_front_sensor, cbox_rear_sensor,):
+    def draw_sim_environment(self, sensor_mask, cbox_front_sensor, cbox_rear_sensor, save_minimap=False, minimap_name=None):
 
         # print('car_pos: ', self.car.position * self.ppu/8)
         offset_x = self.car.position[0] * self.ppu
@@ -221,7 +256,8 @@ class ConfigurableSimulator:
         if self.show_minimap is True:
             # self.tracker.show_car_on_minimap(minimap_car_x_offset, minimap_car_y_offset, self.car.angle)
             minimap_car_x_offset, minimap_car_y_offset = self.tracker.scale_car_positions_to_minimap(center_x, center_y)
-            self.tracker.track_car_movement(minimap_car_x_offset, minimap_car_y_offset)
+            self.tracker.track_car_movement(minimap_car_x_offset, minimap_car_y_offset, save_minimap=save_minimap,
+                                            minimap_name=minimap_name)
 
         # draw
         # first draw onto screen the object_map and check the sensor for it
@@ -273,13 +309,31 @@ class ConfigurableSimulator:
         activations = activation_model.predict([image_buf, state_buf])
         print_activations(activations, layer_names, 'convolution0')
 
-    def run(self, record_data_path=None):
+    def run(self, record_data_path=None, replay_data_path=None, save_image=False, save_minimap=False, minimap_name=None):
+        """
 
+        :param record_data_path: only path, replay.txt and state.txt generated automatically
+        :param replay_data_path: replay path, replay and state are found automatically
+        :param save_image: if you want in replay to save the display
+        :param save_minimap: if you want to save the minimap
+        :param minimap_name: name of the minimap you want to save
+        :return:
+        """
         if record_data_path is not None:
             if os.path.exists(record_data_path) is False:
                 raise OSError(record_data_path + ' does not exists.')
 
-        if self.show_activ is True:
+        if replay_data_path is not None:
+            if os.path.exists(replay_data_path) is False:
+                raise OSError(replay_data_path + ' does not exists.')
+            else:
+                car_replay_coords = read_replay_coords(replay_data_path + '/replay_data.txt')
+                index_replay = 0
+                replay = True
+        else:
+            replay = False
+
+        if self.show_activ is True or save_image is True:
             cbox_front_sensor = Checkbox(self.screen_width - 200, 10, 'Enable front sensor', True)
             cbox_rear_sensor = Checkbox(self.screen_width - 200, 35, 'Enable rear sensor', True)
         else:
@@ -293,19 +347,41 @@ class ConfigurableSimulator:
         sensor_mask = pygame.Surface((self.screen_width, self.screen_height))
         if self.show_activ is True:
             layer_names, image_buf, state_buf, activation_model = self.initialize_activation_model('convolution0')
+        index_image = 0
 
         while not self.exit:
             dt = self.clock.get_time() / 1000
             self.event_handler(cbox_front_sensor, cbox_rear_sensor, mouse_button_pressed)
-            self.key_handler(dt, rs_pos_list)
+
+            if replay is True:
+                if index_replay > len(car_replay_coords) - 1:
+                    break
+                self.car.position.x = car_replay_coords[index_replay][0]
+                self.car.position.y = car_replay_coords[index_replay][1]
+                self.car.angle = car_replay_coords[index_replay][2]
+                index_replay += 1
+            else:
+                action = self.key_handler(dt, rs_pos_list)
+                self.action_handler(dt)
+
             sensor_mask.fill((0, 0, 0))
-            self.draw_sim_environment(sensor_mask, cbox_front_sensor, cbox_rear_sensor)
+            self.draw_sim_environment(sensor_mask, cbox_front_sensor, cbox_rear_sensor, save_minimap=save_minimap,
+                                      minimap_name=minimap_name)
             self.car.update(dt)
+            if replay is True and save_image is True:
+                image_name = 'image_' + str(index_replay) + '.png'
+                save_frame(self.screen, image_name, replay_data_path + '/images')
             if self.show_activ is True:
                 self.show_activations(layer_names, image_buf, state_buf, activation_model, sensor_mask)
 
             if record_data_path is not None:
-                write_replay_data(record_data_path, self.car.position, self.car.angle)
+                image_name = 'image_' + str(index_image) + '.png'
+                index_image += 1
+                actions = [self.car.position.x, self.car.position.y, float(round(self.car.angle, 3)),
+                           float(round(self.car.acceleration, 3)),
+                           float(round(self.car.velocity.x, 3)), action, image_name]
+                write_replay_data(record_data_path + '/replay_data.txt', self.car.position, self.car.angle)
+                write_state_buf(record_data_path + '/state_buf.txt', actions)
 
             pygame.display.update()
             self.clock.tick(self.ticks)
@@ -318,10 +394,12 @@ if __name__ == '__main__':
     MAP_PATH = 'resources/backgrounds/scenario_b_4800x3252.jpg'
     OBJECT_MAP_PATH = 'resources/backgrounds/scenario_b_4800x3252_obj_map.jpg'
     RECORDED_MINIMAP = 'resources/backgrounds/minimap.png'
+    RECORD_DATA_PATH = 'resources/recorded_data/run5'
     car_size = (32, 15)
     starting_position = (-130, -450, -90)
     scaling_factor = 1.5
 
     sim = ConfigurableSimulator(starting_position, CAR_IMAGE_PATH, MAP_PATH, OBJECT_MAP_PATH, car_size=car_size,
                                 scaling_factor=scaling_factor)
-    sim.run()
+    sim.run(record_data_path=None, replay_data_path=RECORD_DATA_PATH, save_image=True, save_minimap=True,
+            minimap_name='run5')

@@ -2,6 +2,7 @@
 import cv2
 import os
 import pygame
+import copy
 
 
 class Tracker(object):
@@ -9,7 +10,8 @@ class Tracker(object):
         self.car = car
         self.ppu = ppu
         self.car_image = car_image
-        if os.path.exists(minimap_path) is False:
+        self.current_dir = os.path.dirname(os.path.abspath(__file__))
+        if os.path.exists(os.path.join(self.current_dir, minimap_path)) is False:
             raise OSError('minimap_path does not exists.')
         self.current_dir = os.path.dirname(os.path.abspath(__file__))
         if recorded_minimap is None:
@@ -55,12 +57,12 @@ class Tracker(object):
             small = cv2.resize(self.car_image, (0, 0), fx=0.25, fy=0.25)
             return small
 
-    def track_car_movement(self, x_offset, y_offset, route_width=2, color=(0, 0, 255), save_minimap=False):
+    def track_car_movement(self, x_offset, y_offset, route_width=2, color=(0, 0, 255), save_minimap=False, minimap_name=None):
         pygame.draw.circle(self.minimap_car_route, color, (y_offset, x_offset), route_width, route_width)
         minimap_image = pygame.surfarray.array3d(self.minimap_car_route)
         cv2.imshow('Minimap', minimap_image)
-        if save_minimap is True:
-            self.save_tracked_data(minimap_image)
+        if save_minimap is True and minimap_name is not None:
+            self.save_tracked_data(minimap_image, minimap_name)
 
     def show_car_on_minimap(self, x_offset, y_offset, angle):
         minimap_surface = pygame.surfarray.make_surface(self.minimap).convert_alpha()
@@ -76,7 +78,8 @@ class Tracker(object):
         pos_y = -self.car.position[1] * self.ppu / self.map_scaling_factor + center_y / self.map_scaling_factor
         return int(pos_x), int(pos_y)
 
-    def save_tracked_data(self, minimap):
-        cv2.imwrite('minimap.png', minimap)
+    @staticmethod
+    def save_tracked_data(minimap, minimap_name):
+        cv2.imwrite('resources/' + minimap_name + '.png', minimap)
 
 
