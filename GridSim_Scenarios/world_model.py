@@ -63,26 +63,27 @@ class WorldModel(object):
         :param o_t: input of CNN (observation at time step t)
         :return:
         """
-        pass
+        return self.conv_net.predict(o_t)
 
     def f_theta(self, z_t, a_t_1, b_t_1):
         """
         Perform GRU predict
-        :param z_t: observations passed through input CNN
+        :param z_t: observations transformed by the CNN
         :param a_t_1: previous action
         :param b_t_1: previous belief
         :return:
         """
-        pass
+        return self.gru_net.predict(np.concatenate((z_t, a_t_1, b_t_1)))
 
     def f_xi(self, k, b, a):
         """
         Perform MLPs predict
+        :param k: index of the MLP
         :param b: belief
         :param a: list of actions
         :return:
         """
-        pass
+        return self.mlp_net[k].predict(np.concatenate((b, a)))
 
     def calc_loss(self, p, o):
         """
@@ -93,24 +94,24 @@ class WorldModel(object):
         """
         pass
 
-    def train(self, h_t, K=10, T=100):
+    def train(self, h_t, K=10):
         """
         Train World Model network.
         :param h_t: History: h_t = (o_0, a_0, o_1, a_1, ..., a_t-1, o_t)
         :param K: number of frame predictions
-        :param T: number of training steps
         :return:
         """
+        T = len(h_t)
         b = 0
         o = [h_t[idx] for idx in range(0, len(h_t), 2)]
         a = [h_t[idx] for idx in range(1, len(h_t), 2)]
         for t in range(1, T - K):
-            z_t = self.f_fi(o[t])
-            b_t = self.f_theta(z_t=z_t, a_t_1=a[t - 1], b_t_1=b)
-            b = b_t
             A = [a[t - 1]]
             P = list()
             L = list()
+            z_t = self.f_fi(o[t])
+            b_t = self.f_theta(z_t=z_t, a_t_1=a[t - 1], b_t_1=b)
+            b = b_t
             for k in range(1, K):
                 p = self.f_xi(k=k, b=b, a=A)
                 A.append(a[t + k - 1])
@@ -134,34 +135,51 @@ class RewardNetwork(object):
         pass
 
 
+def get_fov(car_pos):
+    """
+    Returns an array of point from the field of view of the agent
+    :param car_pos: global position of the agent
+    :return: FOV
+    """
+    arr = list()
+    for i in range(car_pos[1] - 2, car_pos[1] + 3):
+        for j in range(car_pos[0] - 2, car_pos[0] + 3):
+            arr.append((i, j))
+    return arr
+
+
+def intersects(car_pos, obstacle_pos):
+    fov = get_fov(car_pos)
+    if obstacle_pos in fov:
+        return True
+    return False
+
+
+class Obstacle(object):
+    def __init__(self, onehot_encoding, global_position):
+        self.encoding = onehot_encoding
+        self.global_position = global_position
+
+    def is_obstacle_in_agent_fov(self, car_pos):
+        """
+        Find if the obstacle is in an agents' field of view
+        :param car_pos: position of the agent
+        :return: True if obstacle is in FOV, False otherwise
+        """
+        if intersects(car_pos, self.global_position) is True:
+            return True
+        return False
+
+
 class AgentObservation(object):
-    def __init__(self, max_num_obstacles, obstacles, walls):
-        self.max_num_obstacles = max_num_obstacles
-        self.walls = np.zeros(shape=(5, 5), dtype=np.float32)
-        self.obstacles = np.zeros(shape=(self.max_num_obstacles, 5, 5))
-        self._add_obstacles(obstacles)
-        self._add_walls(walls)
-
-    def _add_obstacles(self, pos_2d):
-        obstacles = np.zeros(shape=(self.max_num_obstacles, 5, 5))
-        idx = 0
-        for pos in pos_2d:
-            obs = np.zeros(shape=(5, 5))
-            obstacles[pos[0]][pos[1]] = 1
-            if idx < self.max_num_obstacles:
-                obstacles[idx] = obs
-        self.obstacles = obstacles
-
-    def _add_walls(self, pos_2d):
-        """
-        Add observed walls (positions in 2D as list)
-        :param pos_2d: list of walls as 2D coordinates
-        :return: None
-        """
-        walls = np.zeros(shape=(5, 5))
-        for pos in pos_2d:
-            walls[pos[0]][pos[1]] = 1
-        self.walls = walls
+    def __init__(self, num_obstacles, obstacles_in_fov, walls_in_fov):
+        self.walls = list()
+        self.obstacles = list()
+        for ob in obstacles_in_fov:
+            self.obstacles.append(ob)
+        for wall in walls_in_fov:
+            self.walls.append(wall)
+        self.num_obstacles = num_obstacles
 
 
 class AgentAction(object):
