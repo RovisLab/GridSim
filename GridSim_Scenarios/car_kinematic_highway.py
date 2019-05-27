@@ -5,6 +5,7 @@ from print_activations import print_activations
 import pygame
 import numpy as np
 import random
+from agent_functions import AgentAction, Obstacle
 
 
 class HighwaySimulator(Simulator):
@@ -21,6 +22,8 @@ class HighwaySimulator(Simulator):
                          record_data, replay_data_path, state_buf_path, sensors, distance_sensor, enabled_menu,
                          object_map_path, background_path, car_image_path, traffic_car_image_path,
                          object_car_image_path)
+
+        self.crt_car_id = 0
 
         self.car_image = pygame.transform.scale(self.car_image, (42, 20))
         self.traffic_car_image = pygame.transform.scale(self.traffic_car_image, (42, 20))
@@ -43,6 +46,8 @@ class HighwaySimulator(Simulator):
 
         self.traffic_accidents = 0
         self.ego_car_accidents = 0
+        self.rs_pos_list = [[6, 27, 0.0], [5, 27, 180.0], [4, 24, 180.0], [4, 23, 0.0], [5, 27, 90.0], [5, 27, 0.0]]
+        self.obstacles = list()
 
     def find_out_drawing_coordinates_highway_traffic(self, traffic_car):
         distance = self.car.position.x - self.initial_car_position - self.traffic_offset_value
@@ -146,7 +151,7 @@ class HighwaySimulator(Simulator):
             # remove that position from the available position list
             available_positions.remove(car_position)
             # init traffic car and add it to traffic list
-            traffic_car = Car(car_position[0], car_position[1])
+            traffic_car = Car(car_position[0], car_position[1], self.generate_onehot_encoding())
             traffic_car.angle = -90
             traffic_car.include_next_lane_mechanic = True
             traffic_car.max_velocity = random.randint(10, self.car.max_velocity)
@@ -346,6 +351,82 @@ class HighwaySimulator(Simulator):
         self.draw_highway_traffic()
         self.update_accidents_count()
 
+    def start_standby(self):
+        super().run()
+
+    def action_handler(self, action, dt):
+        # User input
+        """
+        Action handler that coordinates the car movement with user provided action
+        :param car:
+        :param dt:
+        :param rs_pos_list:
+        :return:
+        """
+
+        pressed = pygame.key.get_pressed()
+        if pressed[pygame.K_ESCAPE]:
+            self.return_to_menu()
+            quit()
+
+        if action == AgentAction.STAY:
+            self.car.cruise(dt)
+        elif action == AgentAction.RIGHT:
+            self.car.steer_right(dt)
+        elif action == AgentAction.LEFT:
+            self.car.steer_left(dt)
+        elif action == AgentAction.UP:
+            self.car.accelerate(dt)
+        elif action == AgentAction.DOWN:
+            self.car.brake(dt)
+        else:
+            self.car.no_steering()
+
+    def generate_onehot_encoding(self):
+        arr = [0 for _ in range(25)]
+        arr[self.crt_car_id] = 1
+        self.crt_car_id += 1
+        return np.array(arr).reshape((5, 5))
+
+    def get_walls_in_fov(self):
+        return self.obstacles
+
+    def get_state(self):
+        """
+        Gets world state: car position, walls and moving obstacles
+        :return: car_pos, walls, obstacles
+        """
+        # TODO fetch walls and obstacles (cars)
+        cars = [Obstacle(onehot_encoding=car.onehot_encoding, global_position=car.position)
+                for car in self.highway_traffic]
+        return self.car.position, self.get_walls_in_fov(), cars
+
+    def handle_action_and_get_observation(self, action):
+        self.dt = AgentAction.ACTION_DELTA
+
+        # boolean variable needed to check for single-click press
+        mouse_button_pressed = False
+
+        self.event_handler(mouse_button_pressed)
+        self.action_handler(action, self.dt)
+
+        # DRAWING
+        self.draw_sim_environment(print_coords=True)
+
+        # UPDATE
+        self.car.update(self.dt)
+        self.avoid_collisions()
+        # self.generate_new_cars()
+        self.update_highway_traffic()
+        self.correct_traffic()
+        self.obstacles = self.activate_sensors()
+
+        # CUSTOM FUNCTION TAB FOR FURTHER ADDITIONS
+        self.custom()
+
+        pygame.display.update()
+        return self.get_state()
+
     def run(self):
         super().run()
 
@@ -378,7 +459,7 @@ class HighwaySimulator(Simulator):
             # UPDATE
             self.car.update(self.dt)
             self.avoid_collisions()
-            self.generate_new_cars()
+            # self.generate_new_cars()
             self.update_highway_traffic()
             self.correct_traffic()
 

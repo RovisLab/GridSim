@@ -5,8 +5,9 @@ import numpy as np
 
 
 class Car:
-    def __init__(self, x, y, angle=0.0, length=4, max_steering=30, max_acceleration=30.0):
+    def __init__(self, x, y, onehot_encoding=None, angle=0.0, length=4, max_steering=30, max_acceleration=30.0):
         self.position = Vector2(x, y)
+        self.onehot_encoding = onehot_encoding
         self.velocity = Vector2(0.0, 0.0)
         self.angle = angle
         self.length = length

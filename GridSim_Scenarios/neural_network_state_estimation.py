@@ -1,5 +1,7 @@
-from world_model import AgentAction, AgentObservation, WorldModel
+from world_model import WorldModel
+from agent_functions import AgentObservation
 import random
+from agent_functions import AgentAction
 
 
 possible_actions = [AgentAction.DOWN, AgentAction.RIGHT, AgentAction.UP, AgentAction.LEFT, AgentAction.STAY]
