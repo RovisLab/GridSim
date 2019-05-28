@@ -44,7 +44,7 @@ class Simulator:
 
         self.current_dir = os.path.dirname(os.path.abspath(__file__))
 
-        self.car = Car(car_x, car_y)
+        self.car = Car(x=car_x, y=car_y, max_velocity=30)
         if car_image_path is not None:
             self.car_image_path = os.path.join(self.current_dir, car_image_path)
             self.car_image = pygame.image.load(self.car_image_path).convert_alpha()
@@ -174,6 +174,32 @@ class Simulator:
                                                               draw_screen))
         return distance
 
+    def get_sensors_points_distributions(self):
+        fov_points = list()
+        center_rect = Collision.center_rect(self.screen_width, self.screen_height)
+        mid_of_front_axle = Collision.point_rotation(self.car, -1, 16, center_rect)
+        arc_points = get_arc_points(mid_of_front_axle, 150, radians(90 + self.car.angle), radians(270 + self.car.angle),
+                                    self.sensor_size)
+        for end_point in arc_points:
+            points_to_be_checked = list(get_equidistant_points(mid_of_front_axle, end_point, 25))
+            fov_points.extend(points_to_be_checked)
+
+        center_rect = Collision.center_rect(self.screen_width, self.screen_height)
+        mid_of_rear_axle = Collision.point_rotation(self.car, 65, 16, center_rect)
+
+        arc_points = get_arc_points(mid_of_rear_axle, 150, radians(-90 + self.car.angle), radians(90 + self.car.angle),
+                                    self.sensor_size)
+
+        for end_point in arc_points:
+            points_to_be_checked = list(get_equidistant_points(mid_of_rear_axle, end_point, 25))
+            fov_points.extend(points_to_be_checked)
+
+        for index in range(len(fov_points)):
+            pygame.draw.circle(self.screen, (255, 255, 0),
+                                   (int(fov_points[index][0]), int(fov_points[index][1])), 5, 2)
+
+        return fov_points
+
     def optimized_front_sensor(self, act_mask, display_obstacle_on_sensor=False):
         """
         front visual sensor
@@ -187,14 +213,12 @@ class Simulator:
 
         arc_points = get_arc_points(mid_of_front_axle, 150, radians(90 + self.car.angle), radians(270 + self.car.angle),
                                     self.sensor_size)
-
         offroad_edge_points = []
 
         obstacles = list()
 
         for end_point in arc_points:
             points_to_be_checked = list(get_equidistant_points(mid_of_front_axle, end_point, 25))
-
             check = False
 
             for line_point in points_to_be_checked:
@@ -218,7 +242,6 @@ class Simulator:
                 if display_obstacle_on_sensor is True:
                     pygame.draw.line(self.screen, (255, 0, 0), offroad_edge_points[index], arc_points[index], True)
                     pygame.draw.line(act_mask, (255, 0, 0), offroad_edge_points[index], arc_points[index], True)
-                    pygame.draw.circle(self.screen, (255, 255, 0), (int(offroad_edge_points[index][0]), int(offroad_edge_points[index][1])), 5, 2)
         return obstacles
 
     def optimized_rear_sensor(self, act_mask, display_obstacle_on_sensor=False):

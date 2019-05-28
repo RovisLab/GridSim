@@ -1,6 +1,46 @@
 import numpy as np
 
 
+def get_sine_wave_vector(num_samples, amplitude, phi, num_periods):
+    t = np.linspace(0, 2 * np.pi * num_periods, num_samples)
+    return t, amplitude * np.sin(t + phi)
+
+
+class AgentAccelerationPattern(object):
+    ACCELERATE_UNTIL_MAX_SPEED = 0
+    SINUSOIDAL = 1
+
+    def __init__(self, mode, ns=1000, max_speed=30, num_periods=10):
+        self.mode = mode
+        self.ns = ns
+        self.max_speed = max_speed
+        self.acc_vec = np.zeros(self.ns)
+        self.num_periods = num_periods
+        self.crt_speed_idx = 0
+        if self.mode == AgentAccelerationPattern.SINUSOIDAL:
+            self._generate_acceleration_vector()
+
+    def _generate_acceleration_vector(self):
+        a = self.max_speed
+        phi = -np.pi / 2
+        _, acc_vect = get_sine_wave_vector(num_samples=self.ns, amplitude=a, phi=phi, num_periods=self.num_periods)
+        self.acc_vec = acc_vect
+
+    def get_current_acc(self):
+        acc = self.acc_vec[self.crt_speed_idx % len(self.acc_vec)]
+        self.crt_speed_idx += 1
+        return acc
+
+
+class GridSimScenario(object):
+    USER_CONTROL_NORMAL = 0
+    FOLLOW_LEFT_BEHIND_CATCH_UP = 1
+
+    def __init__(self, num_cars, scenario_type):
+        self.num_cars = num_cars
+        self.scenario_type = scenario_type
+
+
 class AgentAction(object):
     STAY = np.array([1, 0, 0, 0, 0])
     UP = np.array([0, 1, 0, 0, 0])

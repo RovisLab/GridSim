@@ -5,14 +5,14 @@ from print_activations import print_activations
 import pygame
 import numpy as np
 import random
-from agent_functions import AgentAction, Obstacle
+from agent_functions import AgentAction, Obstacle, GridSimScenario, AgentAccelerationPattern
 
 
 class HighwaySimulator(Simulator):
 
-    def __init__(self, screen, screen_width, screen_height, car_x=3, car_y=27, sensor_size=50, rays_nr=8,
+    def __init__(self, screen, screen_width, screen_height, scenario, car_x=3, car_y=27, sensor_size=50, rays_nr=8,
                  activations=False, highway_traffic=True, record_data=False, replay_data_path=None, state_buf_path=None, sensors=False,
-                 distance_sensor=False, enabled_menu=False, highway_traffic_cars_nr=5, ego_car_collisions=True, traffic_collisions=True):
+                 distance_sensor=False, enabled_menu=False, highway_traffic_cars_nr=5, ego_car_collisions=False, traffic_collisions=False):
         object_map_path = "resources/backgrounds/highway_fixed_obj.png"
         background_path = "resources/backgrounds/highway_fixed_bigger.png"
         car_image_path = "resources/cars/car_eb_2.png"
@@ -31,12 +31,11 @@ class HighwaySimulator(Simulator):
         self.object_map = pygame.transform.scale(self.object_map, (self.bgWidth, self.bgHeight))
         self.traffic_offset_value = 3 - car_x
 
-        self.car.max_velocity = 13
         self.car.angle = -90
         self.initial_car_position = car_x
         self.traffic_cars_nr = highway_traffic_cars_nr
         self.traffic_safe_space = 25
-
+        self.scenario = scenario
         self.highway_traffic = []
         if highway_traffic is True:
             self.init_highway_traffic()
@@ -62,23 +61,38 @@ class HighwaySimulator(Simulator):
         return pos_x, pos_y
 
     def update_highway_traffic(self):
-        for traffic_car in self.highway_traffic:
-            if self.car.velocity.x < traffic_car.max_velocity:
-                traffic_car.accelerate(self.dt)
-            elif self.car.velocity.x > traffic_car.max_velocity:
-                traffic_car.brake(self.dt)
-            else:
-                traffic_car.cruise(self.dt)
-
-            traffic_car.update(self.dt)
+        if self.scenario.scenario_type == GridSimScenario.FOLLOW_LEFT_BEHIND_CATCH_UP:
+            for traffic_car in self.highway_traffic:
+                acc_val = traffic_car.acc_pattern.get_current_acc()
+                if acc_val > 0 and traffic_car.velocity.x < traffic_car.max_velocity:
+                    traffic_car.accelerate(self.dt)
+                elif acc_val < 0:
+                    traffic_car.brake(self.dt)
+                else:
+                    traffic_car.cruise(self.dt)
+                traffic_car.update(self.dt)
+                print('acc={0}, vel={1}, e_acc={2}, e_vel={3}'.format(traffic_car.acceleration,
+                                                                      traffic_car.velocity.x,
+                                                                      self.car.acceleration,
+                                                                      self.car.velocity.x))
+        else:
+            for traffic_car in self.highway_traffic:
+                if self.car.velocity.x < traffic_car.max_velocity:
+                    traffic_car.accelerate(self.dt)
+                elif self.car.velocity.x > traffic_car.max_velocity:
+                    traffic_car.brake(self.dt)
+                else:
+                    traffic_car.cruise(self.dt)
+                traffic_car.update(self.dt)
 
     def draw_highway_traffic(self):
         for traffic_car in self.highway_traffic:
-            pos_x, pos_y = self.find_out_drawing_coordinates_highway_traffic(traffic_car)
-            car_img = pygame.transform.rotate(self.traffic_car_image, traffic_car.angle)
-            car_obj_img = pygame.transform.rotate(self.object_car_image, traffic_car.angle)
-            self.screen.blit(car_img, (pos_x, pos_y))
-            self.object_mask.blit(car_obj_img, (pos_x, pos_y))
+            if traffic_car.hide_car is False:
+                pos_x, pos_y = self.find_out_drawing_coordinates_highway_traffic(traffic_car)
+                car_img = pygame.transform.rotate(self.traffic_car_image, traffic_car.angle)
+                car_obj_img = pygame.transform.rotate(self.object_car_image, traffic_car.angle)
+                self.screen.blit(car_img, (pos_x, pos_y))
+                self.object_mask.blit(car_obj_img, (pos_x, pos_y))
 
     def map_relative_traffic_positions(self):
 
@@ -123,7 +137,7 @@ class HighwaySimulator(Simulator):
             pos_y = (traffic_car.position.y * self.ppu) % self.bgHeight
             index += 1
             if pos_y >= 797 and traffic_car.acceleration > 0:
-                # print("Car ", index, " : ", pos_y)
+                print("Car ", index, " : ", pos_y)
                 free_lanes = self.map_available_lanes()
                 if len(free_lanes) > 0:
                     if len(free_lanes) > 1:
@@ -132,30 +146,64 @@ class HighwaySimulator(Simulator):
                         new_lane = free_lanes[0]
                     traffic_car.position.x = new_lane
 
+    def _is_safe(self, fov_pt):
+        car_bbox_pt1 = (self.car.position.x - self.car.length / 2, self.car.position.y - self.car.length / 2)
+        car_bbox_pt2 = (self.car.position.x + self.car.length / 2, self.car.position.y + self.car.length / 2)
+        return not ((car_bbox_pt1[0] <= fov_pt[0] <= car_bbox_pt2[0]) and
+                    (car_bbox_pt1[1] <= fov_pt[1] <= car_bbox_pt2[1]))
+
+    def _generate_positions_in_fov(self):
+        fov_points = self.get_sensors_points_distributions()
+        fov_points = [fov_pt for fov_pt in fov_points if self._is_safe(fov_pt)]
+        return fov_points
+
     def init_highway_traffic(self):
         # define lanes : (40, 4); (37, 3); (34, 2); (31, 1); (43, 5); (46, 6); (49, 7); (52, 8)
-        available_x = np.arange(31, 53, 3)
-        available_y = np.arange(self.traffic_safe_space, self.screen_height, 4 * self.traffic_safe_space
-                                + self.car_image.get_width())
-        available_positions = []
-        for x in available_x:
-            for y in available_y:
-                position = (x, y)
-                available_positions.append(position)
+        if self.scenario.scenario_type == GridSimScenario.FOLLOW_LEFT_BEHIND_CATCH_UP:
+            available_positions_in_fov = list()
+            x = np.arange(31, 46, 3)
+            y = np.arange(200, 500, 4 * self.traffic_safe_space + self.car_image.get_width())
+            for xx in x:
+                for yy in y:
+                    position = (xx, yy)
+                    available_positions_in_fov.append(position)
+            for car_index in range(self.scenario.num_cars):
 
-        random.shuffle(available_positions)
+                car_pos = available_positions_in_fov[random.randint(0, len(available_positions_in_fov) - 1)]
+                available_positions_in_fov.remove(car_pos)
 
-        for car_index in range(self.traffic_cars_nr):
-            # generate random position
-            car_position = available_positions[random.randint(0, len(available_positions) - 1)]
-            # remove that position from the available position list
-            available_positions.remove(car_position)
-            # init traffic car and add it to traffic list
-            traffic_car = Car(car_position[0], car_position[1], self.generate_onehot_encoding())
-            traffic_car.angle = -90
-            traffic_car.include_next_lane_mechanic = True
-            traffic_car.max_velocity = random.randint(10, self.car.max_velocity)
-            self.highway_traffic.append(traffic_car)
+                traffic_car = Car(x=car_pos[0], y=car_pos[1], onehot_encoding=self.generate_onehot_encoding(),
+                                  acc_patern=AgentAccelerationPattern(mode=AgentAccelerationPattern.SINUSOIDAL,
+                                                                      max_speed=15),
+                                  max_acceleration=15,
+                                  max_velocity=15)
+                traffic_car.angle = -90
+                traffic_car.include_next_lane_mechanic = False
+                self.highway_traffic.append(traffic_car)
+
+        else:
+            available_x = np.arange(31, 53, 3)
+            available_y = np.arange(self.traffic_safe_space, self.screen_height, 4 * self.traffic_safe_space
+                                    + self.car_image.get_width())
+            available_positions = []
+            for x in available_x:
+                for y in available_y:
+                    position = (x, y)
+                    available_positions.append(position)
+
+            random.shuffle(available_positions)
+
+            for car_index in range(self.traffic_cars_nr):
+                # generate random position
+                car_position = available_positions[random.randint(0, len(available_positions) - 1)]
+                # remove that position from the available position list
+                available_positions.remove(car_position)
+                # init traffic car and add it to traffic list
+                traffic_car = Car(car_position[0], car_position[1], self.generate_onehot_encoding())
+                traffic_car.angle = -90
+                traffic_car.include_next_lane_mechanic = True
+                traffic_car.max_velocity = random.randint(10, self.car.max_velocity)
+                self.highway_traffic.append(traffic_car)
 
     def translate_ego_car_position_to_traffic_position(self):
         # we take the fifth lane as reference
@@ -273,7 +321,8 @@ class HighwaySimulator(Simulator):
 
         return None
 
-    def avoid_traffic_collision(self):
+    def avoid_traffic_collision(self, overtake_allowed):
+        print('avoid traffic collision')
         for traffic_car_1 in self.highway_traffic:
             pos_y_1 = (traffic_car_1.position.y * self.ppu) % self.bgHeight
             for traffic_car_2 in self.highway_traffic:
@@ -288,8 +337,14 @@ class HighwaySimulator(Simulator):
                             if pos_y_1 > pos_y_2:
                                 # car 1 in front
                                 free_lane = self.check_traffic_car_proximity(traffic_car_2)
-                                if free_lane is not None:
-                                    traffic_car_2.next_lane = free_lane
+
+                                if overtake_allowed is True:
+                                    if free_lane is not None:
+                                            traffic_car_2.next_lane = free_lane
+                                    else:
+                                        traffic_car_2.brake(1)
+                                        traffic_car_2.max_velocity = copy.copy(traffic_car_1.max_velocity)
+                                        traffic_car_1.accelerate(1)
                                 else:
                                     traffic_car_2.brake(1)
                                     traffic_car_2.max_velocity = copy.copy(traffic_car_1.max_velocity)
@@ -297,8 +352,14 @@ class HighwaySimulator(Simulator):
                             elif pos_y_1 < pos_y_2:
                                 # car 2 in front
                                 free_lane = self.check_traffic_car_proximity(traffic_car_1)
-                                if free_lane is not None:
-                                    traffic_car_1.next_lane = free_lane
+
+                                if overtake_allowed is True:
+                                    if free_lane is not None:
+                                            traffic_car_1.next_lane = free_lane
+                                    else:
+                                        traffic_car_1.brake(1)
+                                        traffic_car_1.max_velocity = copy.copy(traffic_car_2.max_velocity)
+                                        traffic_car_2.accelerate(1)
                                 else:
                                     traffic_car_1.brake(1)
                                     traffic_car_1.max_velocity = copy.copy(traffic_car_2.max_velocity)
@@ -307,7 +368,8 @@ class HighwaySimulator(Simulator):
                                 traffic_car_1.accelerate(self.dt)
                                 traffic_car_2.accelerate(self.dt)
 
-    def avoid_ego_car_collision(self):
+    def avoid_ego_car_collision(self, overtake_allowed):
+        print("avoid ego car collision")
         # check cars in ego_car_proximity
         ego_car_lane = self.find_ego_car_lane()
         for traffic_car in self.highway_traffic:
@@ -323,20 +385,33 @@ class HighwaySimulator(Simulator):
                     if self.screen_height - pos_y > 375:
                         # traffic car is behind ego_car -> brake to avoid collision
                         free_lane = self.check_traffic_car_proximity(traffic_car)
-                        if free_lane is not None:
-                            if traffic_car.velocity.x > self.car.velocity.x:
-                                traffic_car.next_lane = free_lane
+
+                        if overtake_allowed is True:
+                            if free_lane is not None:
+                                    if traffic_car.velocity.x > self.car.velocity.x:
+                                        traffic_car.next_lane = free_lane
+                            else:
+                                traffic_car.brake(self.dt)
                         else:
                             traffic_car.brake(self.dt)
                     else:
                         # traffic car is in front of ego_car -> accelerate to avoid collision
                         traffic_car.accelerate(self.dt)
 
-    def avoid_collisions(self):
+    def hide_traffic(self):
+        for traffic_car in self.highway_traffic:
+            pos = self.find_out_drawing_coordinates_highway_traffic(traffic_car)
+            if pos[1] < 0:
+                if traffic_car.velocity.x < self.car.velocity.x:
+                    traffic_car.hide_car = False
+                else:
+                    traffic_car.hide_car = True
+
+    def avoid_collisions(self, overtake_allowed):
         if self.ego_car_collisions is True:
-            self.avoid_ego_car_collision()
+            self.avoid_ego_car_collision(overtake_allowed)
         if self.traffic_collisions is True:
-            self.avoid_traffic_collision()
+            self.avoid_traffic_collision(overtake_allowed)
 
     def update_accidents_count(self):
         myfont = pygame.font.SysFont('Arial', 25)
@@ -401,7 +476,7 @@ class HighwaySimulator(Simulator):
                 for car in self.highway_traffic]
         return self.car.position, self.get_walls_in_fov(), cars
 
-    def handle_action_and_get_observation(self, action):
+    def handle_action_and_get_observation(self, action, overtake_allowed):
         self.dt = AgentAction.ACTION_DELTA
 
         # boolean variable needed to check for single-click press
@@ -415,7 +490,7 @@ class HighwaySimulator(Simulator):
 
         # UPDATE
         self.car.update(self.dt)
-        self.avoid_collisions()
+        self.avoid_collisions(overtake_allowed=overtake_allowed)
         # self.generate_new_cars()
         self.update_highway_traffic()
         self.correct_traffic()
@@ -427,7 +502,15 @@ class HighwaySimulator(Simulator):
         pygame.display.update()
         return self.get_state()
 
-    def run(self):
+    def run(self, hide_traffic=False, keep_traffic=False, overtake_allowed=True):
+        """
+
+        :param hide_traffic: when the traffic exits the main screen, it will not be re-drawn, it will wait for the
+        ego-car to catch up
+        :param keep_traffic: when this is true, the traffic positions will be kept
+        :param overtake_allowed: allow cars to pass each other
+        :return:
+        """
         super().run()
 
         rs_pos_list = [[6, 27, 0.0], [5, 27, 180.0], [4, 24, 180.0], [4, 23, 0.0], [5, 27, 90.0], [5, 27, 0.0]]
@@ -458,8 +541,11 @@ class HighwaySimulator(Simulator):
 
             # UPDATE
             self.car.update(self.dt)
-            self.avoid_collisions()
-            # self.generate_new_cars()
+            self.avoid_collisions(overtake_allowed)
+            if keep_traffic is False:
+                self.generate_new_cars()
+            if hide_traffic is True:
+                self.hide_traffic()
             self.update_highway_traffic()
             self.correct_traffic()
 
@@ -491,6 +577,8 @@ class HighwaySimulator(Simulator):
 
 if __name__ == '__main__':
     screen = pygame.display.set_mode((1280, 720))
-    highway_sim = HighwaySimulator(screen, 1280, 720, highway_traffic_cars_nr=10)
-    highway_sim.run()
+    highway_sim = HighwaySimulator(screen, 1280, 720, highway_traffic_cars_nr=1,
+                                   scenario=GridSimScenario(num_cars=1,
+                                                            scenario_type=GridSimScenario.FOLLOW_LEFT_BEHIND_CATCH_UP))
+    highway_sim.run(keep_traffic=True, hide_traffic=True, overtake_allowed=False)
 

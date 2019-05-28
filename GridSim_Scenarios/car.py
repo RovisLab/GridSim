@@ -2,10 +2,13 @@ from pygame.math import Vector2
 from math import tan, radians, degrees, copysign
 import random
 import numpy as np
+from agent_functions import AgentAccelerationPattern
 
 
 class Car:
-    def __init__(self, x, y, onehot_encoding=None, angle=0.0, length=4, max_steering=30, max_acceleration=30.0):
+    def __init__(self, x, y, onehot_encoding=None, angle=0.0, length=4, max_steering=30, max_acceleration=30.0,
+                 acc_patern=AgentAccelerationPattern(mode=AgentAccelerationPattern.ACCELERATE_UNTIL_MAX_SPEED),
+                 max_velocity=30):
         self.position = Vector2(x, y)
         self.onehot_encoding = onehot_encoding
         self.velocity = Vector2(0.0, 0.0)
@@ -13,7 +16,7 @@ class Car:
         self.length = length
         self.max_acceleration = max_acceleration
         self.max_steering = max_steering
-        self.max_velocity = 15
+        self.max_velocity = max_velocity
         self.brake_deceleration = 30
         self.free_deceleration = 5
 
@@ -24,6 +27,8 @@ class Car:
         self.next_lane = None
         self.next_lane_steps = None
         self.next_lane_angles = None
+        self.hide_car = False
+        self.acc_pattern = acc_patern
 
     def reset_car(self, rs_pos_list):
         rand_pos = random.choice(rs_pos_list)
