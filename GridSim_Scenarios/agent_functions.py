@@ -10,20 +10,20 @@ class AgentAccelerationPattern(object):
     ACCELERATE_UNTIL_MAX_SPEED = 0
     SINUSOIDAL = 1
 
-    def __init__(self, mode, ns=1000, max_speed=30, num_periods=10):
+    def __init__(self, mode, ns=100, num_periods=1):
         self.mode = mode
         self.ns = ns
-        self.max_speed = max_speed
         self.acc_vec = np.zeros(self.ns)
         self.num_periods = num_periods
         self.crt_speed_idx = 0
         if self.mode == AgentAccelerationPattern.SINUSOIDAL:
             self._generate_acceleration_vector()
 
+    def get_num_samples(self):
+        return self.ns
+
     def _generate_acceleration_vector(self):
-        a = self.max_speed
-        phi = -np.pi / 2
-        _, acc_vect = get_sine_wave_vector(num_samples=self.ns, amplitude=a, phi=phi, num_periods=self.num_periods)
+        _, acc_vect = get_sine_wave_vector(num_samples=self.ns, amplitude=1, phi=0, num_periods=self.num_periods)
         self.acc_vec = acc_vect
 
     def get_current_acc(self):

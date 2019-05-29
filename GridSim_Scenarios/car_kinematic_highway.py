@@ -63,26 +63,33 @@ class HighwaySimulator(Simulator):
     def update_highway_traffic(self):
         if self.scenario.scenario_type == GridSimScenario.FOLLOW_LEFT_BEHIND_CATCH_UP:
             for traffic_car in self.highway_traffic:
-                acc_val = traffic_car.acc_pattern.get_current_acc()
-                if acc_val > 0 and traffic_car.velocity.x < traffic_car.max_velocity:
-                    traffic_car.accelerate(self.dt)
-                elif acc_val < 0:
-                    traffic_car.brake(self.dt)
-                else:
-                    traffic_car.cruise(self.dt)
-                traffic_car.update(self.dt)
-                print('acc={0}, vel={1}, e_acc={2}, e_vel={3}'.format(traffic_car.acceleration,
-                                                                      traffic_car.velocity.x,
-                                                                      self.car.acceleration,
-                                                                      self.car.velocity.x))
-        else:
-            for traffic_car in self.highway_traffic:
                 if self.car.velocity.x < traffic_car.max_velocity:
                     traffic_car.accelerate(self.dt)
                 elif self.car.velocity.x > traffic_car.max_velocity:
                     traffic_car.brake(self.dt)
                 else:
                     traffic_car.cruise(self.dt)
+                traffic_car.update(self.dt)
+                '''base_speed = traffic_car.max_velocity / 2
+                acc_val = traffic_car.acc_pattern.get_current_acc()
+                if traffic_car.velocity.x < base_speed:
+                    traffic_car.accelerate(self.dt)
+                else:
+                    if acc_val > 0 and traffic_car.velocity.x < traffic_car.max_velocity:
+                        traffic_car.accelerate(self.dt)
+                    elif acc_val < 0 and traffic_car.velocity.x > base_speed:
+                        traffic_car.brake(self.dt)
+                    else:
+                        traffic_car.cruise(self.dt)'''
+                traffic_car.update(self.dt)
+        else:
+            for traffic_car in self.highway_traffic:
+                '''if self.car.velocity.x < traffic_car.max_velocity:
+                    traffic_car.accelerate(self.dt)
+                elif self.car.velocity.x > traffic_car.max_velocity:
+                    traffic_car.brake(self.dt)
+                else:
+                    traffic_car.cruise(self.dt)'''
                 traffic_car.update(self.dt)
 
     def draw_highway_traffic(self):
@@ -272,8 +279,7 @@ class HighwaySimulator(Simulator):
                 traffic_car.acceleration -= self.car.acceleration
 
     def correct_traffic(self):
-
-        self.backwards_detector()
+        #self.backwards_detector()
         self.lane_check()
         self.accident_avoider()
 
@@ -322,7 +328,6 @@ class HighwaySimulator(Simulator):
         return None
 
     def avoid_traffic_collision(self, overtake_allowed):
-        print('avoid traffic collision')
         for traffic_car_1 in self.highway_traffic:
             pos_y_1 = (traffic_car_1.position.y * self.ppu) % self.bgHeight
             for traffic_car_2 in self.highway_traffic:
@@ -369,7 +374,6 @@ class HighwaySimulator(Simulator):
                                 traffic_car_2.accelerate(self.dt)
 
     def avoid_ego_car_collision(self, overtake_allowed):
-        print("avoid ego car collision")
         # check cars in ego_car_proximity
         ego_car_lane = self.find_ego_car_lane()
         for traffic_car in self.highway_traffic:
@@ -401,11 +405,15 @@ class HighwaySimulator(Simulator):
     def hide_traffic(self):
         for traffic_car in self.highway_traffic:
             pos = self.find_out_drawing_coordinates_highway_traffic(traffic_car)
+            print('pos={0}'.format(pos))
             if pos[1] < 0:
+                traffic_car.hide_car = True
+                '''
                 if traffic_car.velocity.x < self.car.velocity.x:
                     traffic_car.hide_car = False
                 else:
                     traffic_car.hide_car = True
+                '''
 
     def avoid_collisions(self, overtake_allowed):
         if self.ego_car_collisions is True:

@@ -43,6 +43,21 @@ class Car:
         else:
             self.acceleration += 10 * dt
 
+    def accelerate_variable(self, dt, coefficient):
+        self.acceleration += coefficient * dt
+
+    def follow(self, other_car):
+        self.acceleration = other_car.acceleration
+
+    def stay_behind(self, other_car, dt):
+        if self.velocity.x > 0:
+            self.acceleration = other_car.acceleration - 2 * dt
+        else:
+            self.acceleration = 0.0
+
+    def catch_up(self, other_car):
+        self.acceleration = 1.3 * abs(other_car.acceleration)
+
     def brake(self, dt):
         if self.velocity.x > 0:
             self.acceleration = -self.brake_deceleration

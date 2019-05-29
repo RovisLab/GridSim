@@ -106,9 +106,9 @@ if __name__ == '__main__':
     # define a width and height of the screen
     w, h = 1280, 720
     screen = pygame.display.set_mode((w, h))
-    # custom_simulator = CustomExampleSimulator(screen, w, h)
-    # custom_simulator.run()
-    custom_simulator = CustomExampleSimulator2(screen, w, h)
+    custom_simulator = CustomExampleSimulator(screen, w, h)
     custom_simulator.run()
+    #custom_simulator = CustomExampleSimulator2(screen, w, h)
+    #custom_simulator.run()
 
 

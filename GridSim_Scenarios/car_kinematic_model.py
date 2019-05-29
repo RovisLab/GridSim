@@ -44,7 +44,7 @@ class Simulator:
 
         self.current_dir = os.path.dirname(os.path.abspath(__file__))
 
-        self.car = Car(x=car_x, y=car_y, max_velocity=30)
+        self.car = Car(x=car_x, y=car_y, max_velocity=25)
         if car_image_path is not None:
             self.car_image_path = os.path.join(self.current_dir, car_image_path)
             self.car_image = pygame.image.load(self.car_image_path).convert_alpha()
