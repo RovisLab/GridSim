@@ -35,6 +35,8 @@ class AgentAccelerationPattern(object):
 class GridSimScenario(object):
     USER_CONTROL_NORMAL = 0
     FOLLOW_LEFT_BEHIND_CATCH_UP = 1
+    TRAIL_OVERTAKE_STOP = 2
+    OVERTAKE_LEFT_BEHIND_OVERTAKE = 3
 
     def __init__(self, num_cars, scenario_type):
         self.num_cars = num_cars

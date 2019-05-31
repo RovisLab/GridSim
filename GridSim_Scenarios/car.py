@@ -49,13 +49,13 @@ class Car:
     def follow(self, other_car):
         self.acceleration = other_car.acceleration
 
-    def stay_behind(self, other_car, dt):
+    def stay_behind(self, other_car, dt, coefficient=2):
         if self.velocity.x > 0:
-            self.acceleration = other_car.acceleration - 2 * dt
+            self.acceleration = other_car.acceleration - coefficient * dt
         else:
             self.acceleration = 0.0
 
-    def catch_up(self, other_car):
+    def overtake(self, other_car):
         self.acceleration = 1.3 * abs(other_car.acceleration)
 
     def brake(self, dt):
@@ -63,6 +63,12 @@ class Car:
             self.acceleration = -self.brake_deceleration
         else:
             self.acceleration -= 10 * dt
+
+    def stop(self, dt):
+        if self.velocity.x > 0:
+            self.brake(dt)
+        else:
+            self.cruise(dt)
 
     def handbrake(self, dt):
         if abs(self.velocity.x) > dt * self.brake_deceleration:

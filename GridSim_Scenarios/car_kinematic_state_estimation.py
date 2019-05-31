@@ -4,24 +4,32 @@ import pygame
 import random
 import numpy as np
 from agent_functions import AgentAccelerationPattern, GridSimScenario
+import os
+import csv
+import datetime
 
 
 class StateEstimatorKinematicModel(Simulator):
     def __init__(self, screen, screen_width, screen_height, num_cars, max_veh_vel, base_velocity,
-                 scenario=GridSimScenario.FOLLOW_LEFT_BEHIND_CATCH_UP):
+                 scenario=GridSimScenario.TRAIL_OVERTAKE_STOP):
         # choose your backgrounds
         object_map_path = "resources/backgrounds/highway_fixed_obj.png"
         background_path = "resources/backgrounds/highway_fixed_bigger.png"
         car_image_path = "resources/cars/car_eb_2.png"
         traffic_car_image_path = "resources/cars/car_traffic.png"
         object_car_image_path = "resources/cars/object_car.png"
-        car_x = 5
+        car_x = 0
         car_y = 27
 
-        super(StateEstimatorKinematicModel, self).__init__(screen, screen_width, screen_height, car_x, car_y, 50, 8, False,
-                                                           False, None, None, True, True, False, object_map_path,
-                                                           background_path, car_image_path, traffic_car_image_path,
-                                                           object_car_image_path)
+        super(StateEstimatorKinematicModel, self).__init__(screen, screen_width, screen_height, car_x, car_y, 50, 32,
+                                                           False, True, None,
+                                                           os.path.join(os.path.dirname(__file__),
+                                                                        "resources",
+                                                                        "traffic_cars_data",
+                                                                        "state_estimation.csv"),
+                                                           False, True, False,
+                                                           object_map_path, background_path, car_image_path,
+                                                           traffic_car_image_path, object_car_image_path)
         self.car_image = pygame.transform.scale(self.car_image, (42, 20))
         self.traffic_car_image = pygame.transform.scale(self.traffic_car_image, (42, 20))
         self.object_car_image = pygame.transform.scale(self.object_car_image, (42, 20))
@@ -39,6 +47,11 @@ class StateEstimatorKinematicModel(Simulator):
         self.base_velocity = base_velocity
         self.scenario = scenario
         self.cycle_num = 0
+
+        if os.path.exists(self.state_buf_path):
+            parts = os.path.splitext(self.state_buf_path)
+            new_name = parts[0] + "_{0}".format(str(datetime.datetime.now().time()).replace(":", "_").replace(".", "_")) + parts[1]
+            os.rename(self.state_buf_path, new_name)
 
     def _get_available_fov_vehicles(self):
         x = np.arange(31, 46, 3)
@@ -59,7 +72,7 @@ class StateEstimatorKinematicModel(Simulator):
                               None, 0.0, 4, 30, self.max_veh_vel,
                               AgentAccelerationPattern(AgentAccelerationPattern.SINUSOIDAL))
             traffic_car.angle = -90
-            traffic_car.include_next_lane_mechanic = True
+            traffic_car.include_next_lane_mechanic = False
             self.highway_traffic.append(traffic_car)
 
     def _adjust_velocity(self, traffic_car):
@@ -84,16 +97,67 @@ class StateEstimatorKinematicModel(Simulator):
             traffic_car.position.y -= diff[1]
 
     def scenario_handler(self):
+        num_sin_cycles = self.cycle_num // self.highway_traffic[0].acc_pattern.get_num_samples()
         if self.scenario == GridSimScenario.FOLLOW_LEFT_BEHIND_CATCH_UP:
-            num_sin_cycles = self.cycle_num // self.highway_traffic[0].acc_pattern.get_num_samples()
             if 0 <= num_sin_cycles <= 3:
                 self.car.follow(self.highway_traffic[0])
             elif 3 < num_sin_cycles <= 6:
                 self.car.stay_behind(self.highway_traffic[0], self.dt)
             elif 6 < num_sin_cycles <= 10:
-                self.car.catch_up(self.highway_traffic[0])
+                self.car.overtake(self.highway_traffic[0])
             else:
                 self.exit = True
+        elif self.scenario == GridSimScenario.TRAIL_OVERTAKE_STOP:
+            if 0 <= num_sin_cycles <= 3:
+                self.car.follow(self.highway_traffic[0])
+            elif 3 < num_sin_cycles <= 6:
+                self.car.overtake(self.highway_traffic[0])
+            elif 6 < num_sin_cycles <= 10:
+                self.car.stop(self.dt)
+            else:
+                self.exit = True
+        elif self.scenario == GridSimScenario.OVERTAKE_LEFT_BEHIND_OVERTAKE:
+            if 0 <= num_sin_cycles <= 1:
+                self.car.overtake(self.highway_traffic[0])
+            elif 1 < num_sin_cycles <= 5:
+                self.car.stay_behind(self.highway_traffic[0], self.dt, 10)
+            elif 5 < num_sin_cycles <= 12:
+                self.car.overtake(self.highway_traffic[0])
+            else:
+                self.exit = True
+
+    def _get_data_dict(self):
+        d = dict()
+        d["index"] = self.cycle_num
+        d["ego_x"] = self.car.position.x
+        d["ego_y"] = self.car.position.y
+        d["ego_angle"] = self.car.angle
+        d["ego_acceleration"] = self.car.acceleration
+        d["ego_vel"] = self.car.velocity.x
+        d["num_tracked_cars"] = len(self.highway_traffic)
+        for idx in range(len(self.highway_traffic)):
+            d["car_{0}_x".format(idx)] = self.highway_traffic[idx].position.x
+            d["car_{0}_y".format(idx)] = self.highway_traffic[idx].position.y
+            d["car_{0}_angle".format(idx)] = self.highway_traffic[idx].angle
+            d["car_{0}_acceleration".format(idx)] = self.highway_traffic[idx].acceleration
+            d["car_{0}_vel".format(idx)] = self.highway_traffic[idx].velocity.x
+        return d
+
+    def record_data_function(self, index):
+        fieldnames = ["index", "ego_x", "ego_y", "ego_angle",
+                      "ego_acceleration", "ego_vel", "num_tracked_cars"]
+        for idx in range(len(self.highway_traffic)):
+            fieldnames.append("car_{0}_x".format(idx))
+            fieldnames.append("car_{0}_y".format(idx))
+            fieldnames.append("car_{0}_angle".format(idx))
+            fieldnames.append("car_{0}_acceleration".format(idx))
+            fieldnames.append("car_{0}_vel".format(idx))
+        file_exists = os.path.exists(self.state_buf_path)
+        with open(self.state_buf_path, 'a') as csv_out_file:
+            writer = csv.DictWriter(csv_out_file, fieldnames=fieldnames, delimiter=",", lineterminator="\n")
+            if not file_exists:
+                writer.writeheader()
+            writer.writerow(rowdict=self._get_data_dict())
 
     def run(self):
         super().run()
@@ -124,10 +188,14 @@ class StateEstimatorKinematicModel(Simulator):
             self.scenario_handler()
             self.car.update(self.dt)
             diff_pos = [0, self.car.position.y - prev_pos[1]]
-            self.correct_drawing(diff_pos)
+            #self.correct_drawing(diff_pos)
 
             # check the sensors for activations
             self.activate_sensors()
+
+            # save information from frames
+            if self.record_data is True:
+                self.record_data_function(self.cycle_num)
 
             # leave the custom function tab always open in case you want to add something from another simulator
             # that implements this simulator
@@ -150,13 +218,27 @@ class StateEstimatorKinematicModel(Simulator):
         pos_y = self.screen_height - pos_y
         return pos_x, pos_y
 
+    def _is_in_view(self, traffic_car):
+        rotated = pygame.transform.rotate(self.car_image, self.car.angle)
+        rot_rect = rotated.get_rect()
+
+        center_x = int(self.screen_width / 2) - int(rot_rect.width / 2)
+        center_y = int(self.screen_height / 2) - int(rot_rect.height / 2)
+
+        traffic_car_pos_x = traffic_car.position[0] * self.ppu
+        traffic_car_pos_y = traffic_car.position[1] * self.ppu
+
+        return abs(traffic_car_pos_x - center_x) < self.screen_width / 2 \
+            and abs(traffic_car_pos_y - center_y) < self.screen_height / 2
+
     def draw_highway_traffic(self):
         for traffic_car in self.highway_traffic:
-            pos_x, pos_y = self.find_out_drawing_coordinates_highway_traffic(traffic_car)
-            car_img = pygame.transform.rotate(self.traffic_car_image, traffic_car.angle)
-            car_obj_img = pygame.transform.rotate(self.object_car_image, traffic_car.angle)
-            self.screen.blit(car_img, (pos_x, pos_y))
-            self.object_mask.blit(car_obj_img, (pos_x, pos_y))
+            if self._is_in_view(traffic_car):
+                pos_x, pos_y = self.find_out_drawing_coordinates_highway_traffic(traffic_car)
+                car_img = pygame.transform.rotate(self.traffic_car_image, traffic_car.angle)
+                car_obj_img = pygame.transform.rotate(self.object_car_image, traffic_car.angle)
+                self.screen.blit(car_img, (pos_x, pos_y))
+                self.object_mask.blit(car_obj_img, (pos_x, pos_y))
 
     def custom_drawing(self, *args):
         super().custom(args)
