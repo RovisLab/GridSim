@@ -153,12 +153,6 @@ class HighwaySimulator(Simulator):
                         new_lane = free_lanes[0]
                     traffic_car.position.x = new_lane
 
-    def _is_safe(self, fov_pt):
-        car_bbox_pt1 = (self.car.position.x - self.car.length / 2, self.car.position.y - self.car.length / 2)
-        car_bbox_pt2 = (self.car.position.x + self.car.length / 2, self.car.position.y + self.car.length / 2)
-        return not ((car_bbox_pt1[0] <= fov_pt[0] <= car_bbox_pt2[0]) and
-                    (car_bbox_pt1[1] <= fov_pt[1] <= car_bbox_pt2[1]))
-
     def _generate_positions_in_fov(self):
         fov_points = self.get_sensors_points_distributions()
         fov_points = [fov_pt for fov_pt in fov_points if self._is_safe(fov_pt)]

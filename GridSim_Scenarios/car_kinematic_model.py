@@ -108,6 +108,8 @@ class Simulator:
         self.cbox_rear_sensor = Checkbox(self.screen_width - 200, 35, 'Enable rear sensor', self.sensors)
         self.cbox_distance_sensor = Checkbox(self.screen_width - 200, 60, 'Enable distance sensor', self.distance_sensor)
 
+        self.sensor_len = 200
+
     def on_road(self, car, screen):
         Ox = 32
         Oy = 16
@@ -135,11 +137,11 @@ class Simulator:
         else:
             return True
 
-    def compute_sensor_distance(self, car, base_point, sensor_length, sensor_angle, data_screen, draw_screen):
-        end_point_x = base_point[0] + sensor_length * cos(radians(sensor_angle - car.angle))
-        end_point_y = base_point[1] + sensor_length * sin(radians(sensor_angle - car.angle))
+    def compute_sensor_distance(self, car, base_point, sensor_angle, data_screen, draw_screen):
+        end_point_x = base_point[0] + self.sensor_len * cos(radians(sensor_angle - car.angle))
+        end_point_y = base_point[1] + self.sensor_len * sin(radians(sensor_angle - car.angle))
 
-        for index in range(0, sensor_length):
+        for index in range(0, self.sensor_len):
             coll_point_x = base_point[0] + index * cos(radians(sensor_angle - car.angle))
             coll_point_y = base_point[1] + index * sin(radians(sensor_angle - car.angle))
 
@@ -170,8 +172,8 @@ class Simulator:
         distance = np.array([])
         for angle_index in range(120, 240, int(round(120/rays_nr))):
             distance = np.append(distance,
-                                 self.compute_sensor_distance(car, mid_of_front_axle, 200, angle_index, self.object_mask,
-                                                              draw_screen))
+                                 self.compute_sensor_distance(car, mid_of_front_axle,
+                                                              angle_index, self.object_mask, draw_screen))
         return distance
 
     def get_sensors_points_distributions(self):
