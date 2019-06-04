@@ -1,5 +1,42 @@
-from keras.models import Model
-from keras.layers import Input, Dense, GRU
+import os
+import csv
+from keras.models import Model, load_model
+from keras.layers import Input, Dense, GRU, concatenate
+from keras.optimizers import Adam
+
+
+def find_num(n, k):
+    rem = n % k
+    if rem == 0:
+        return n
+    else:
+        return n - rem
+
+
+def prepare_data(data_path, fieldnames, prediction_horizon_size, history_size):
+    """
+    Parse all csv files located in data_path folder
+    :param data_path:
+    :param fieldnames:
+    :param prediction_horizon_size:
+    :param history_size:
+    :return:
+    """
+    if os.path.isdir(data_path):
+        files = os.listdir(data_path)
+        files = [f for f in files if "state_estimation" in f and f.endswith(".csv")]
+        h_t = list()
+        for f in files:
+            with open(os.path.join(data_path, f), "r") as csv_file:
+                reader = csv.DictReader(csv_file, fieldnames=fieldnames)
+                len_f = len(list(reader))
+                max_idx = find_num(len_f, prediction_horizon_size + history_size)
+                idx = 0
+                for row in reader:
+                    if idx >= max_idx:
+                        break
+                    h_t.append([float(row["ego_vel"]), float(row["car_0_dy"]), float(row["car_0_in_fov"])])
+                    idx += 1
 
 
 class WorldModel(object):
@@ -8,13 +45,53 @@ class WorldModel(object):
         self.input_layer_num_units = 8
         self.mlp_layer_num_units = 8
         self.gru_layer_num_units = 128
-        self.mlp_layer_size = prediction_horizon_size
+        self.mlp_hidden_layer_size = prediction_horizon_size
+        self.mlp_output_layer_size = 1
         self.model = None
 
-    def _build_architecture(self):
+    def _build_architecture(self, actions):
         input_shape = Input(shape=self.input_shape)
         input_layer = Dense(units=self.input_layer_num_units, activation="relu")(input_shape)
-        gru = GRU(units=self.gru_layer_num_units)(input_layer)
-        for idx in range(self.mlp_layer_size):
-            mlp = Dense(units=self.mlp_layer_num_units)
-            # TODO Activation size here
+        gru_input = concatenate([input_layer, actions[-1]])
+        gru = GRU(units=self.gru_layer_num_units)(gru_input)
+        mlp_outputs = list()
+        for idx in range(self.mlp_hidden_layer_size):
+            mlp_inputs = actions[:idx + 1]
+            mlp_in = concatenate([gru, mlp_inputs])
+            mlp = Dense(units=self.mlp_layer_num_units, activation="relu")(mlp_in)
+            mlp_output = Dense(units=self.mlp_output_layer_size, activation="relu")(mlp)
+            mlp_outputs.append(mlp_output)
+
+        self.model = Model(input_shape, mlp_outputs)
+        self.model.compile(optimizer=Adam(lr=0.00005), loss="categorical_crossentropy", metrics=["accuracy"])
+
+    def train_network(self, data, actions, labels, epochs=10, batch_size=256):
+        self._build_architecture(actions)
+        self.model.fit(x=data, y=labels, epochs=epochs, batch_size=batch_size, validation_split=0.8)
+
+    def evaluate_network(self, x_test, y_test, batch_size=128):
+        self.model.evaluate(x_test, y_test, batch_size=batch_size)
+
+    def predict(self, data_frame):
+        return self.model.predict(x=data_frame)
+
+    def save_model(self, model_path):
+        return self.model.save(model_path)
+
+    def load_model(self, model_path):
+        self.model = load_model(model_path)
+
+
+if __name__ == "__main__":
+    fieldnames = ["index", "ego_x", "ego_y", "ego_angle", "ego_acceleration", "ego_vel", "num_tracked_cars"]
+    idx = 0
+    fieldnames.append("car_{0}_x".format(idx))
+    fieldnames.append("car_{0}_y".format(idx))
+    fieldnames.append("car_{0}_angle".format(idx))
+    fieldnames.append("car_{0}_acceleration".format(idx))
+    fieldnames.append("car_{0}_vel".format(idx))
+    fieldnames.append("car_{0}_in_fov".format(idx))
+    fieldnames.append("car_{0}_d_y".format(idx))
+    prepare_data(data_path="resources/traffic_cars_data", fieldnames=fieldnames,
+                 prediction_horizon_size=10, history_size=10)
+
