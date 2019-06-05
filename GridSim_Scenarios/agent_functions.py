@@ -37,6 +37,7 @@ class GridSimScenario(object):
     FOLLOW_LEFT_BEHIND_CATCH_UP = 1
     TRAIL_OVERTAKE_STOP = 2
     OVERTAKE_LEFT_BEHIND_OVERTAKE = 3
+    BACK_AND_FORWARD = 4
 
     def __init__(self, num_cars, scenario_type):
         self.num_cars = num_cars

@@ -43,6 +43,12 @@ class Car:
         else:
             self.acceleration += 10 * dt
 
+    def accelerate_to_speed(self, dt, speed):
+        if self.velocity.x < speed:
+            self.accelerate(dt=dt)
+        else:
+            self.cruise(dt=dt)
+
     def accelerate_variable(self, dt, coefficient):
         self.acceleration += coefficient * dt
 

@@ -12,7 +12,7 @@ import datetime
 
 class StateEstimatorKinematicModel(Simulator):
     def __init__(self, screen, screen_width, screen_height, num_cars, max_veh_vel, base_velocity,
-                 scenario=GridSimScenario.TRAIL_OVERTAKE_STOP):
+                 scenario=GridSimScenario.BACK_AND_FORWARD):
         # choose your backgrounds
         object_map_path = "resources/backgrounds/highway_fixed_obj.png"
         background_path = "resources/backgrounds/highway_fixed_bigger.png"
@@ -134,6 +134,13 @@ class StateEstimatorKinematicModel(Simulator):
                 self.car.overtake(self.highway_traffic[0])
             else:
                 self.exit = True
+        elif self.scenario == GridSimScenario.BACK_AND_FORWARD:
+            if num_sin_cycles > 12:
+                self.exit = True
+            if num_sin_cycles % 2 == 0:
+                self.car.accelerate_to_speed(self.dt, self.car.max_velocity)
+            else:
+                self.car.accelerate_to_speed(self.dt, self.car.max_velocity / 2)
 
     def _get_data_dict(self):
         d = dict()
@@ -152,7 +159,7 @@ class StateEstimatorKinematicModel(Simulator):
             d["car_{0}_vel".format(idx)] = self.highway_traffic[idx].velocity.x
             if self._object_in_sensor_fov():
                 d["car_{0}_in_fov".format(idx)] = 1.0
-                d["car_{0}_d_y".format(idx)] = self.car.velocity.x - self.highway_traffic[idx].velocity.x
+                d["car_{0}_d_y".format(idx)] = self.car.position.y - self.highway_traffic[idx].position.y
             else:
                 d["car_{0}_in_fov".format(idx)] = 0.0
                 d["car_{0}_d_y".format(idx)] = 0.0

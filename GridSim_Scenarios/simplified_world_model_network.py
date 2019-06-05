@@ -26,6 +26,7 @@ def prepare_data(data_path, fieldnames, prediction_horizon_size, history_size):
         files = os.listdir(data_path)
         files = [f for f in files if "state_estimation" in f and f.endswith(".csv")]
         h_t = list()
+        a_t = list()
         for f in files:
             with open(os.path.join(data_path, f), "r") as csv_file:
                 reader = csv.DictReader(csv_file, fieldnames=fieldnames)
@@ -35,8 +36,21 @@ def prepare_data(data_path, fieldnames, prediction_horizon_size, history_size):
                 for row in reader:
                     if idx >= max_idx:
                         break
-                    h_t.append([float(row["ego_vel"]), float(row["car_0_dy"]), float(row["car_0_in_fov"])])
+                    h_t.append((float(row["car_0_dy"]), float(row["car_0_in_fov"])))
+                    a_t.append(float(row["ego_vel"]))
                     idx += 1
+        return h_t, a_t
+    return [], []
+
+
+def split_data_train_labels(h_t, a_t, prediction_horizon_size):
+    observations, actions, results = list(), list(), list()
+    for obs_idx in range(len(h_t) - prediction_horizon_size):
+        observations.append((h_t[obs_idx][0], h_t[obs_idx][1]))
+        for a_idx in range(prediction_horizon_size):
+            actions.append(a_t[:obs_idx + a_idx + 1])
+            results.append(h_t[obs_idx + a_idx + 1][0])
+    return observations, actions, results
 
 
 class WorldModel(object):
@@ -92,6 +106,13 @@ if __name__ == "__main__":
     fieldnames.append("car_{0}_vel".format(idx))
     fieldnames.append("car_{0}_in_fov".format(idx))
     fieldnames.append("car_{0}_d_y".format(idx))
-    prepare_data(data_path="resources/traffic_cars_data", fieldnames=fieldnames,
-                 prediction_horizon_size=10, history_size=10)
+    h_t, a_t = prepare_data(data_path=os.path.join(os.path.dirname(__file__), "resources/traffic_cars_data"),
+                            fieldnames=fieldnames,
+                            prediction_horizon_size=10,
+                            history_size=10)
+
+    observations, actions, results = split_data_train_labels(h_t=h_t, a_t=a_t, prediction_horizon_size=10)
+    model = WorldModel(input_shape=(2, 1), prediction_horizon_size=10)
+    model.train_network(data=observations, actions=actions, labels=results)
+
 
