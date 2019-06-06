@@ -13,6 +13,18 @@ def find_num(n, k):
         return n - rem
 
 
+def merge_training_files(base_path, fieldnames, prediction_horizon_size, history_size,
+                         output_path_observations, output_path_actions, output_path_predictions):
+    h_t, a_t = prepare_data(base_path, fieldnames, prediction_horizon_size, history_size)
+    with open(output_path_observations, "w") as obs_f:
+        with open(output_path_actions, "w") as action_f:
+            with open(output_path_predictions, "w") as pred_f:
+                for idx in range(len(h_t) - prediction_horizon_size):
+                    obs_f.write("{0},{1}\n".format(h_t[idx][0], h_t[idx][1]))
+                    for i in range(0, prediction_horizon_size):
+                        action_f.write("{0},".format(a_t[:idx + i + 1]))
+
+
 def prepare_data(data_path, fieldnames, prediction_horizon_size, history_size):
     """
     Parse all csv files located in data_path folder
@@ -33,10 +45,12 @@ def prepare_data(data_path, fieldnames, prediction_horizon_size, history_size):
                 len_f = len(list(reader))
                 max_idx = find_num(len_f, prediction_horizon_size + history_size)
                 idx = 0
+                csv_file.seek(0)
+                next(reader, None)  # skip header
                 for row in reader:
                     if idx >= max_idx:
                         break
-                    h_t.append((float(row["car_0_dy"]), float(row["car_0_in_fov"])))
+                    h_t.append((float(row["car_0_d_y"]), float(row["car_0_in_fov"])))
                     a_t.append(float(row["ego_vel"]))
                     idx += 1
         return h_t, a_t
