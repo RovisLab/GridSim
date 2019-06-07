@@ -3,6 +3,7 @@ import csv
 from keras.models import Model, load_model
 from keras.layers import Input, Dense, GRU, concatenate
 from keras.optimizers import Adam
+import numpy as np
 
 
 def find_num(n, k):
@@ -22,7 +23,10 @@ def merge_training_files(base_path, fieldnames, prediction_horizon_size, history
                 for idx in range(len(h_t) - prediction_horizon_size):
                     obs_f.write("{0},{1}\n".format(h_t[idx][0], h_t[idx][1]))
                     for i in range(0, prediction_horizon_size):
-                        action_f.write("{0},".format(a_t[:idx + i + 1]))
+                        action_f.write("{0},".format(a_t[idx:idx + i + 1]))
+                        pred_f.write("{0},".format(h_t[idx + i + 1][0]))
+                    action_f.write("\n")
+                    pred_f.write("\n")
 
 
 def prepare_data(data_path, fieldnames, prediction_horizon_size, history_size):
@@ -111,22 +115,4 @@ class WorldModel(object):
 
 
 if __name__ == "__main__":
-    fieldnames = ["index", "ego_x", "ego_y", "ego_angle", "ego_acceleration", "ego_vel", "num_tracked_cars"]
-    idx = 0
-    fieldnames.append("car_{0}_x".format(idx))
-    fieldnames.append("car_{0}_y".format(idx))
-    fieldnames.append("car_{0}_angle".format(idx))
-    fieldnames.append("car_{0}_acceleration".format(idx))
-    fieldnames.append("car_{0}_vel".format(idx))
-    fieldnames.append("car_{0}_in_fov".format(idx))
-    fieldnames.append("car_{0}_d_y".format(idx))
-    h_t, a_t = prepare_data(data_path=os.path.join(os.path.dirname(__file__), "resources/traffic_cars_data"),
-                            fieldnames=fieldnames,
-                            prediction_horizon_size=10,
-                            history_size=10)
-
-    observations, actions, results = split_data_train_labels(h_t=h_t, a_t=a_t, prediction_horizon_size=10)
     model = WorldModel(input_shape=(2, 1), prediction_horizon_size=10)
-    model.train_network(data=observations, actions=actions, labels=results)
-
-
