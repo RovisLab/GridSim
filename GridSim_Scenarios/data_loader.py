@@ -59,9 +59,9 @@ class StateEstimationDataGenerator(Sequence):
         with open(self.observation_file, "r") as obs_f:
             with open(self.prediction_file, "r") as pred_f:
                 with open(self.action_file, "r") as action_f:
-                    obs_f.seek(offset=self.last_fp_observations)
-                    pred_f.seek(offset=self.last_fp_predictions)
-                    action_f.seek(offset=self.last_fp_actions)
+                    obs_f.seek(self.last_fp_observations)
+                    pred_f.seek(self.last_fp_predictions)
+                    action_f.seek(self.last_fp_actions)
                     idx = 0
                     while idx < self.batch_size:
                         observations.append(self._process_obs(obs_f.readline()))

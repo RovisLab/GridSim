@@ -109,14 +109,17 @@ class WorldModel(object):
     def train_network(self, epochs=10, batch_size=256):
         generator = StateEstimationDataGenerator(actions_file=os.path.join(os.path.dirname(__file__),
                                                                            "resources",
+                                                                           "traffic_cars_data",
                                                                            "state_estimation_data",
                                                                            "actions.npy"),
                                                  observations_file=os.path.join(os.path.dirname(__file__),
                                                                                 "resources",
+                                                                                "traffic_cars_data",
                                                                                 "state_estimation_data",
                                                                                 "observations.npy"),
                                                  predictions_file=os.path.join(os.path.dirname(__file__),
                                                                                "resources",
+                                                                               "traffic_cars_data",
                                                                                "state_estimation_data",
                                                                                "predictions.npy"),
                                                  batch_size=batch_size)
