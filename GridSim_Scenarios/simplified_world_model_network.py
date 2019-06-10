@@ -1,7 +1,7 @@
 import os
 import csv
 from keras.models import Model, load_model
-from keras.layers import Input, Dense, GRU, Concatenate, concatenate, Reshape
+from keras.layers import Input, Dense, GRU, Concatenate, concatenate, Reshape, Lambda
 from keras.optimizers import Adam
 from data_loader import StateEstimationDataGenerator
 import keras.backend as K
@@ -89,11 +89,15 @@ class WorldModel(object):
         input_shape = Input(shape=self.input_shape)
         action_layer = Input(shape=self.action_shape)
         prev_action = Input(shape=(1,))
-        gru_input = concatenate([input_shape, prev_action])
-        gru = GRU(units=self.gru_layer_num_units)(gru_input)
+        gru_input = Concatenate()([input_shape, prev_action])
+        input_gru = Reshape(target_shape=(1, int(gru_input.shape[1])))(gru_input)
+        gru = GRU(units=self.gru_layer_num_units)(input_gru)
         mlp_outputs = list()
         for idx in range(self.mlp_hidden_layer_size):
-            mlp_inputs = action_layer[:idx + 1]
+            #mlp_inputs = action_layer[:idx + 1]
+            mlp_inputs = Lambda(lambda x, i: x[:i])
+            mlp_inputs.arguments = {'i': idx}
+            mlp_inputs = mlp_inputs(action_layer)
             mlp_in = Concatenate()([gru, mlp_inputs])
             mlp = Dense(units=self.mlp_layer_num_units, activation="relu")(mlp_in)
             mlp_output = Dense(units=self.mlp_output_layer_size, activation="relu")(mlp)
