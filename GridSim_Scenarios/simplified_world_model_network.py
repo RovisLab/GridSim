@@ -1,9 +1,10 @@
 import os
 import csv
 from keras.models import Model, load_model
-from keras.layers import Input, Dense, GRU, concatenate
+from keras.layers import Input, Dense, GRU, Concatenate, concatenate, Reshape
 from keras.optimizers import Adam
-import numpy as np
+from data_loader import StateEstimationDataGenerator
+import keras.backend as K
 
 
 def find_num(n, k):
@@ -23,7 +24,7 @@ def merge_training_files(base_path, fieldnames, prediction_horizon_size, history
                 for idx in range(len(h_t) - prediction_horizon_size):
                     obs_f.write("{0},{1}\n".format(h_t[idx][0], h_t[idx][1]))
                     for i in range(0, prediction_horizon_size):
-                        action_f.write("{0},".format(a_t[idx:idx + i + 1]))
+                        action_f.write("{0},".format(a_t[idx + i + 1]))
                         pred_f.write("{0},".format(h_t[idx + i + 1][0]))
                     action_f.write("\n")
                     pred_f.write("\n")
@@ -80,26 +81,42 @@ class WorldModel(object):
         self.mlp_hidden_layer_size = prediction_horizon_size
         self.mlp_output_layer_size = 1
         self.model = None
+        self.action_shape = (prediction_horizon_size,)
+        self.batch_size = 32
+        self._build_architecture()
 
-    def _build_architecture(self, actions):
+    def _build_architecture(self):
         input_shape = Input(shape=self.input_shape)
-        input_layer = Dense(units=self.input_layer_num_units, activation="relu")(input_shape)
-        gru_input = concatenate([input_layer, actions[-1]])
+        action_layer = Input(shape=self.action_shape)
+        prev_action = Input(shape=(1,))
+        gru_input = concatenate([input_shape, prev_action])
         gru = GRU(units=self.gru_layer_num_units)(gru_input)
         mlp_outputs = list()
         for idx in range(self.mlp_hidden_layer_size):
-            mlp_inputs = actions[:idx + 1]
-            mlp_in = concatenate([gru, mlp_inputs])
+            mlp_inputs = action_layer[:idx + 1]
+            mlp_in = Concatenate()([gru, mlp_inputs])
             mlp = Dense(units=self.mlp_layer_num_units, activation="relu")(mlp_in)
             mlp_output = Dense(units=self.mlp_output_layer_size, activation="relu")(mlp)
             mlp_outputs.append(mlp_output)
 
-        self.model = Model(input_shape, mlp_outputs)
+        self.model = Model([input_shape, action_layer, prev_action], mlp_outputs)
         self.model.compile(optimizer=Adam(lr=0.00005), loss="categorical_crossentropy", metrics=["accuracy"])
 
-    def train_network(self, data, actions, labels, epochs=10, batch_size=256):
-        self._build_architecture(actions)
-        self.model.fit(x=data, y=labels, epochs=epochs, batch_size=batch_size, validation_split=0.8)
+    def train_network(self, epochs=10, batch_size=256):
+        generator = StateEstimationDataGenerator(actions_file=os.path.join(os.path.dirname(__file__),
+                                                                           "resources",
+                                                                           "state_estimation_data",
+                                                                           "actions.npy"),
+                                                 observations_file=os.path.join(os.path.dirname(__file__),
+                                                                                "resources",
+                                                                                "state_estimation_data",
+                                                                                "observations.npy"),
+                                                 predictions_file=os.path.join(os.path.dirname(__file__),
+                                                                               "resources",
+                                                                               "state_estimation_data",
+                                                                               "predictions.npy"),
+                                                 batch_size=batch_size)
+        self.model.fit_generator(generator=generator, epochs=epochs)
 
     def evaluate_network(self, x_test, y_test, batch_size=128):
         self.model.evaluate(x_test, y_test, batch_size=batch_size)
@@ -115,4 +132,6 @@ class WorldModel(object):
 
 
 if __name__ == "__main__":
-    model = WorldModel(input_shape=(2, 1), prediction_horizon_size=10)
+    model = WorldModel(input_shape=(2,), prediction_horizon_size=10)
+    model.train_network(epochs=10, batch_size=32)
+
