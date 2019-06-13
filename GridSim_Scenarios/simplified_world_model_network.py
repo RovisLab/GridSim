@@ -92,8 +92,8 @@ class WorldModel(object):
         action_layer = Input(shape=self.action_shape)
         prev_action = Input(shape=(self.history_size, 1))
         gru_input = Concatenate()([input_layer, prev_action])
-        input_gru = Reshape(target_shape=(1, int(gru_input.shape[1])))(gru_input)
-        gru = GRU(units=self.gru_layer_num_units)(input_gru)
+        # input_gru = Reshape(target_shape=(self.history_size, int(gru_input.shape[1])))(gru_input)
+        gru = GRU(units=self.gru_layer_num_units)(gru_input)
         mlp_outputs = list()
         for idx in range(self.mlp_hidden_layer_size):
             mlp_inputs = Lambda(lambda x: x[:, :idx+1])(action_layer)
@@ -123,7 +123,9 @@ class WorldModel(object):
                                                                                "traffic_cars_data",
                                                                                "state_estimation_data",
                                                                                "predictions.npy"),
-                                                 batch_size=batch_size)
+                                                 batch_size=batch_size,
+                                                 history_size=self.history_size,
+                                                 prediction_horizon_size=self.mlp_hidden_layer_size)
         self.model.fit_generator(generator=generator, epochs=epochs)
 
     def evaluate_network(self, x_test, y_test, batch_size=128):
