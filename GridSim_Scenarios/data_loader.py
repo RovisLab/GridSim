@@ -1,32 +1,28 @@
 from keras.utils import Sequence
+import os
 import numpy as np
 
 
 class StateEstimationDataGenerator(Sequence):
-    def __init__(self, actions_file, observations_file, predictions_file, batch_size, history_size, prediction_horizon_size):
+    def __init__(self, input_file_path, batch_size, history_size, prediction_horizon_size):
         self.batch_size = batch_size
-        self.action_file = actions_file
-        self.observation_file = observations_file
-        self.prediction_file = predictions_file
+        self.action_file = os.path.join(input_file_path, "actions.npy")
+        self.observation_file = os.path.join(input_file_path, "observations.npy")
+        self.prediction_file = os.path.join(input_file_path, "predictions.npy")
+        self.prev_action_file = os.path.join(input_file_path, "prev_actions.npy")
         self.num_samples = self.__get_num_samples()
+        self.num_samples = self.num_samples if self.num_samples % batch_size == 0 else self.num_samples - (self.num_samples % batch_size)
         self.history_size = history_size
         self.prediction_horizon_size = prediction_horizon_size
         self.last_fp_actions = 0
         self.last_fp_predictions = 0
         self.last_fp_observations = 0
+        self.last_fp_prev_actions = 0
         self.print_generator_details = True
         if self.print_generator_details:
             print("State Estimation Generator: number of samples: {0}, batch_size: {1}, num_steps: {2}".format(
                 self.num_samples, self.batch_size, self.__len__()
             ))
-
-        self.observations = list()
-        self.actions = list()
-        self.prediction = list()
-        self.history = list()
-        self.prev_actions = list()
-        self.pred_actions = list()
-        self.final_predictions = list()
 
     def __get_num_samples(self):
         with open(self.action_file, "r") as f:
@@ -36,137 +32,100 @@ class StateEstimationDataGenerator(Sequence):
     def __len__(self):
         return int(np.floor(self.num_samples / self.batch_size) - self.history_size)
 
-    def _process_obs(self, observation_str):
-        f_elems = list()
-        elements = observation_str.split(",")
-        try:
-            for elem in elements:
-                f_elems.append(float(elem))
-        except ValueError:
-            pass
-        return f_elems
+    def read_observations(self, obs_str):
+        elements = list()
+        for elem in obs_str.split(","):
+            try:
+                elements.append(float(elem))
+            except ValueError:
+                pass
+        elem_idx = 0
+        observations = list()
+        if len(elements) == 2 * self.history_size:
+            for h_idx in range(self.history_size):
+                observations.append([elements[elem_idx], elements[elem_idx + 1]])
+                elem_idx += 2
+        return observations
 
-    def _process_action(self, action_str):
-        f_elems = list()
-        elements = action_str.split(",")
-        try:
-            for elem in elements:
-                f_elems.append(float(elem))
-        except ValueError:
-            pass
-        return f_elems
+    def read_actions(self, action_str):
+        elements = list()
+        for elem in action_str.split(","):
+            try:
+                elements.append(float(elem))
+            except ValueError:
+                pass
+        actions = list()
+        if len(elements) == self.prediction_horizon_size:
+            for act_idx in range(self.prediction_horizon_size):
+                actions.append(elements[act_idx])
+        return actions
 
-    def _process_prediction(self, pred_str):
-        f_elems = list()
-        elements = pred_str.split(",")
-        try:
-            for elem in elements:
-                f_elems.append(float(elem))
-        except ValueError:
-            pass
-        return f_elems
+    def read_predictions(self, pred_str):
+        elements = list()
+        for elem in pred_str.split(","):
+            try:
+                elements.append(float(elem))
+            except ValueError:
+                pass
+        predictions = list()
+        if len(elements) == self.prediction_horizon_size:
+            for pred_idx in range(self.prediction_horizon_size):
+                predictions.append(elements[pred_idx])
+        return predictions
 
-    def buffer_data(self):
-        with open(self.observation_file, "r") as obs_f:
-            with open(self.prediction_file, "r") as pred_f:
-                with open(self.action_file, "r") as action_f:
-                    obs_f.seek(self.last_fp_observations)
-                    pred_f.seek(self.last_fp_predictions)
-                    action_f.seek(self.last_fp_actions)
-                    idx = 0
-                    while idx < self.batch_size * self.history_size:
-                        obs = self._process_obs(obs_f.readline())
-                        if len(obs) == 0:
-                            break
-                        self.observations.append(obs)
-                        pred = self._process_prediction(pred_f.readline())
-                        if len(pred) == 0:
-                            break
-                        self.prediction.append(pred)
-                        act = self._process_action(action_f.readline())
-                        if len(act) == 0:
-                            break
-                        self.actions.append(act)
-                        idx += 1
-                    self.last_fp_actions = action_f.tell()
-                    self.last_fp_predictions = pred_f.tell()
-                    self.last_fp_observations = obs_f.tell()
-
-    def process_data(self):
-        if len(self.observations) <= self.batch_size * self.history_size:
-            self.buffer_data()
-        self.history = list()
-        self.prev_actions = list()
-        self.pred_actions = list()
-        self.final_predictions = list()
-        batch_idx = 0
-        while batch_idx < self.batch_size:
-            seq_idx = 0
-            crt_h_seq = list()
-            while seq_idx < self.history_size:
-                crt_h_seq.append(self.observations[seq_idx])
-                seq_idx += 1
-            self.prev_actions.append(self.actions[seq_idx - 1])
-            self.history.append(crt_h_seq)
-            self.pred_actions.append(
-                self.actions[seq_idx + self.prediction_horizon_size]
-            )
-            self.final_predictions.append(
-                self.prediction[seq_idx + self.prediction_horizon_size]
-            )
-            # Remove consumed observations, actions and predictions
-            self.observations.pop(0)
-            self.actions.pop(0)
-            self.prediction.pop(0)
-
-            batch_idx += 1
-        p = list()
-        for idx in range(len(self.final_predictions[0])):
-            pp = list()
-            for idx2 in range(len(self.final_predictions)):
-                pp.append(self.final_predictions[idx2][idx])
-            p.append(pp)
-        return [np.array(self.history), np.array(self.pred_actions),
-                np.array(self.prev_actions).reshape((self.batch_size, self.history_size, 1))], p
+    def read_prev_actions(self, prev_action_str):
+        elements = list()
+        for elem in prev_action_str.split(","):
+            try:
+                elements.append(float(elem))
+            except ValueError:
+                pass
+        return elements
 
     def __getitem__(self, item):
-        """
-        observations = list()
         actions = list()
-        predictions = list()
+        observations = list()
         prev_actions = list()
-        prev_actions.append(0.0)
-        with open(self.observation_file, "r") as obs_f:
+        predictions = list()
+        with open(self.action_file, "r") as act_f:
             with open(self.prediction_file, "r") as pred_f:
-                with open(self.action_file, "r") as action_f:
-                    obs_f.seek(self.last_fp_observations)
-                    pred_f.seek(self.last_fp_predictions)
-                    action_f.seek(self.last_fp_actions)
-                    idx = 0
-                    while idx < self.batch_size:
-                        obs = self._process_obs(obs_f.readline())
-                        observations.append(obs)
-                        actions.append(self._process_action(action_f.readline()))
-                        predictions.append(self._process_prediction(pred_f.readline()))
-                        idx += 1
-                    for idx in range(1, len(actions)):
-                        prev_actions.append(actions[idx][-1])
-                    self.last_fp_predictions = pred_f.tell()
-                    self.last_fp_actions = action_f.tell()
-                    self.last_fp_observations = obs_f.tell()
+                with open(self.prev_action_file, "r") as prev_act_f:
+                    with open(self.observation_file, "r") as obs_f:
+                        act_f.seek(self.last_fp_actions)
+                        pred_f.seek(self.last_fp_predictions)
+                        prev_act_f.seek(self.last_fp_prev_actions)
+                        obs_f.seek(self.last_fp_observations)
+                        idx = 0
+                        while idx < self.batch_size:
+                            crt_actions = self.read_actions(act_f.readline())
+                            crt_prev_actions = self.read_prev_actions(prev_act_f.readline())
+                            crt_predictions = self.read_predictions(pred_f.readline())
+                            crt_observations = self.read_observations(obs_f.readline())
+                            if len(crt_actions) > 0:
+                                actions.append(crt_actions)
+                            if len(crt_observations) > 0:
+                                observations.append(crt_observations)
+                            if len(crt_prev_actions) > 0:
+                                prev_actions.append(crt_prev_actions)
+                            if len(crt_predictions) > 0:
+                                predictions.append(crt_predictions)
+                            idx += 1
+                        self.last_fp_observations = obs_f.tell()
+                        self.last_fp_prev_actions = prev_act_f.tell()
+                        self.last_fp_predictions = pred_f.tell()
+                        self.last_fp_actions = act_f.tell()
 
         p = list()
-        for idx in range(len(predictions[0])):
-            pp = list()
-            for idx2 in range(len(predictions)):
-                pp.append(predictions[idx2][idx])
-            p.append(np.array(pp).reshape((len(predictions), 1)))
+        if len(predictions):
+            for idx in range(len(predictions[0])):
+                pp = list()
+                for idx2 in range(len(predictions)):
+                    try:
+                        pp.append(predictions[idx2][idx])
+                    except IndexError:
+                        print("PULA")
+                p.append(pp)
 
-        return [np.array(observations), np.array(actions), np.array(prev_actions)], p
-        """
-        return self.process_data()
+        return [np.array(observations), np.array(actions),
+                np.array(prev_actions).reshape((len(prev_actions), self.history_size, 1))], p
 
-    def on_epoch_end(self):
-        self.last_fp_observations = 0
-        self.last_fp_actions = 0
-        self.last_fp_predictions = 0

@@ -12,7 +12,7 @@ import datetime
 
 class StateEstimatorKinematicModel(Simulator):
     def __init__(self, screen, screen_width, screen_height, num_cars, max_veh_vel, base_velocity,
-                 scenario=GridSimScenario.BACK_AND_FORWARD):
+                 scenario=GridSimScenario.USER_CONTROL_SINE):
         # choose your backgrounds
         object_map_path = "resources/backgrounds/highway_fixed_obj.png"
         background_path = "resources/backgrounds/highway_fixed_bigger.png"
@@ -27,7 +27,7 @@ class StateEstimatorKinematicModel(Simulator):
                                                            os.path.join(os.path.dirname(__file__),
                                                                         "resources",
                                                                         "traffic_cars_data",
-                                                                        "state_estimation.csv"),
+                                                                        "state_estimation_data"),
                                                            False, True, False,
                                                            object_map_path, background_path, car_image_path,
                                                            traffic_car_image_path, object_car_image_path)
@@ -49,10 +49,10 @@ class StateEstimatorKinematicModel(Simulator):
         self.scenario = scenario
         self.cycle_num = 0
 
-        if os.path.exists(self.state_buf_path):
-            parts = os.path.splitext(self.state_buf_path)
+        if os.path.exists(os.path.join(self.state_buf_path, "tmp.npy")):
+            parts = os.path.splitext(os.path.join(self.state_buf_path, "tmp.npy"))
             new_name = parts[0] + "_{0}".format(str(datetime.datetime.now().time()).replace(":", "_").replace(".", "_")) + parts[1]
-            os.rename(self.state_buf_path, new_name)
+            os.rename(os.path.join(self.state_buf_path, "tmp.npy"), new_name)
 
     def _get_available_fov_vehicles(self):
         x = np.arange(31, 52, 3)
@@ -140,48 +140,20 @@ class StateEstimatorKinematicModel(Simulator):
             if num_sin_cycles % 2 == 0:
                 self.car.accelerate_to_speed(self.dt, self.car.max_velocity)
             else:
-                self.car.accelerate_to_speed(self.dt, self.car.max_velocity / 2)
+                self.car.stop(self.dt)
+        elif self.scenario == GridSimScenario.USER_CONTROL_SINE:
+            self.key_handler(dt=self.dt, rs_pos_list=[])
 
-    def _get_data_dict(self):
-        d = dict()
-        d["index"] = self.cycle_num
-        d["ego_x"] = self.car.position.x
-        d["ego_y"] = self.car.position.y
-        d["ego_angle"] = self.car.angle
-        d["ego_acceleration"] = self.car.acceleration
-        d["ego_vel"] = self.car.velocity.x
-        d["num_tracked_cars"] = len(self.highway_traffic)
-        for idx in range(len(self.highway_traffic)):
-            d["car_{0}_x".format(idx)] = self.highway_traffic[idx].position.x
-            d["car_{0}_y".format(idx)] = self.highway_traffic[idx].position.y
-            d["car_{0}_angle".format(idx)] = self.highway_traffic[idx].angle
-            d["car_{0}_acceleration".format(idx)] = self.highway_traffic[idx].acceleration
-            d["car_{0}_vel".format(idx)] = self.highway_traffic[idx].velocity.x
-            if self._object_in_sensor_fov():
-                d["car_{0}_in_fov".format(idx)] = 1.0
-                d["car_{0}_d_y".format(idx)] = self.car.position.y - self.highway_traffic[idx].position.y
-            else:
-                d["car_{0}_in_fov".format(idx)] = 0.0
-                d["car_{0}_d_y".format(idx)] = 0.0
-        return d
+    def _write_data(self):
+        if os.path.exists(self.state_buf_path) and os.path.isdir(self.state_buf_path):
+            with open(os.path.join(self.state_buf_path, "tmp.npy"), "a") as tmp_f:
+                tmp_f.write("{0},{1},{2}\n".format(self.car.position.y - self.highway_traffic[0].position.y
+                                                   if self._object_in_sensor_fov() else 0.0,
+                                                   1.0 if self._object_in_sensor_fov() else 0.0,
+                                                   self.car.velocity.x if self._object_in_sensor_fov() else 0.0))
 
     def record_data_function(self, index):
-        fieldnames = ["index", "ego_x", "ego_y", "ego_angle",
-                      "ego_acceleration", "ego_vel", "num_tracked_cars"]
-        for idx in range(len(self.highway_traffic)):
-            fieldnames.append("car_{0}_x".format(idx))
-            fieldnames.append("car_{0}_y".format(idx))
-            fieldnames.append("car_{0}_angle".format(idx))
-            fieldnames.append("car_{0}_acceleration".format(idx))
-            fieldnames.append("car_{0}_vel".format(idx))
-            fieldnames.append("car_{0}_in_fov".format(idx))
-            fieldnames.append("car_{0}_d_y".format(idx))
-        file_exists = os.path.exists(self.state_buf_path)
-        with open(self.state_buf_path, 'a') as csv_out_file:
-            writer = csv.DictWriter(csv_out_file, fieldnames=fieldnames, delimiter=",", lineterminator="\n")
-            if not file_exists:
-                writer.writeheader()
-            writer.writerow(rowdict=self._get_data_dict())
+        self._write_data()
 
     def run(self):
         super().run()

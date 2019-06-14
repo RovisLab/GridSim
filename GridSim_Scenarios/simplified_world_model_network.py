@@ -1,10 +1,8 @@
 import os
-import csv
 from keras.models import Model, load_model
 from keras.layers import Input, Dense, GRU, Concatenate, concatenate, Reshape, Lambda
 from keras.optimizers import Adam
 from data_loader import StateEstimationDataGenerator
-import keras.backend as K
 
 
 def find_num(n, k):
@@ -15,61 +13,87 @@ def find_num(n, k):
         return n - rem
 
 
-def merge_training_files(base_path, fieldnames, prediction_horizon_size, history_size,
-                         output_path_observations, output_path_actions, output_path_predictions):
-    h_t, a_t = prepare_data(base_path, fieldnames, prediction_horizon_size, history_size)
-    with open(output_path_observations, "w") as obs_f:
-        with open(output_path_actions, "w") as action_f:
-            with open(output_path_predictions, "w") as pred_f:
-                for idx in range(len(h_t) - prediction_horizon_size):
-                    obs_f.write("{0},{1}\n".format(h_t[idx][0], h_t[idx][1]))
-                    for i in range(0, prediction_horizon_size):
-                        action_f.write("{0},".format(a_t[idx + i + 1]))
-                        pred_f.write("{0},".format(h_t[idx + i + 1][0]))
-                    action_f.write("\n")
-                    pred_f.write("\n")
+def extract_observations(tmp_fp, h_size):
+    h_seq_idx = 0
+    obs_batch = list()
+    prev_action = None
+    remember_pos = 0
+    while h_seq_idx < h_size:
+        elements = list()
+        if h_seq_idx == 1:
+            remember_pos = tmp_fp.tell()  # remember file cursor position for next iteration
+        line = tmp_fp.readline().split(",")
+        if len(line) == 0:
+            break
+        for e in line:
+            try:
+                elements.append(float(e))
+            except ValueError:
+                pass
+        obs_batch.append(elements[:2])
+        prev_action = [elements[2] for _ in range(h_size)]
+        h_seq_idx += 1
+    return remember_pos, prev_action, obs_batch
 
 
-def prepare_data(data_path, fieldnames, prediction_horizon_size, history_size):
-    """
-    Parse all csv files located in data_path folder
-    :param data_path:
-    :param fieldnames:
-    :param prediction_horizon_size:
-    :param history_size:
-    :return:
-    """
-    if os.path.isdir(data_path):
-        files = os.listdir(data_path)
-        files = [f for f in files if "state_estimation" in f and f.endswith(".csv")]
-        h_t = list()
-        a_t = list()
-        for f in files:
-            with open(os.path.join(data_path, f), "r") as csv_file:
-                reader = csv.DictReader(csv_file, fieldnames=fieldnames)
-                len_f = len(list(reader))
-                max_idx = find_num(len_f, prediction_horizon_size + history_size)
-                idx = 0
-                csv_file.seek(0)
-                next(reader, None)  # skip header
-                for row in reader:
-                    if idx >= max_idx:
-                        break
-                    h_t.append((float(row["car_0_d_y"]), float(row["car_0_in_fov"])))
-                    a_t.append(float(row["ego_vel"]))
-                    idx += 1
-        return h_t, a_t
-    return [], []
+def extract_predictions_and_actions(tmp_fp, pred_h_size):
+    act_seq_idx = 0
+    act_batch = list()
+    pred_batch = list()
+    while act_seq_idx < pred_h_size:
+        elements = list()
+        line = tmp_fp.readline().split(",")
+        if len(line) < 3:
+            break
+        for e in line:
+            try:
+                elements.append(float(e))
+            except ValueError:
+                pass
+        act_batch.append(elements[2])
+        pred_batch.append(elements[0])
+        act_seq_idx += 1
+    return pred_batch, act_batch
 
 
-def split_data_train_labels(h_t, a_t, prediction_horizon_size):
-    observations, actions, results = list(), list(), list()
-    for obs_idx in range(len(h_t) - prediction_horizon_size):
-        observations.append((h_t[obs_idx][0], h_t[obs_idx][1]))
-        for a_idx in range(prediction_horizon_size):
-            actions.append(a_t[:obs_idx + a_idx + 1])
-            results.append(h_t[obs_idx + a_idx + 1][0])
-    return observations, actions, results
+def convert_gridsim_output(fp_in, fp_out, h_size, pred_h_size):
+    with open(fp_in, "r") as f:
+        num_lines = sum(1 for line in f if len(line) > 1)
+    with open(fp_in, "r") as tmp_f:
+        with open(os.path.join(fp_out, "actions.npy"), "a") as act_f:
+            with open(os.path.join(fp_out, "predictions.npy"), "a") as pred_f:
+                with open(os.path.join(fp_out, "observations.npy"), "a") as obs_f:
+                    with open(os.path.join(fp_out, "prev_actions.npy"), "a") as prev_act_f:
+                        idx = 0
+                        remember_cursor = 0
+                        while idx < num_lines - h_size - (pred_h_size - 1):
+                            # Extract training data from temp file
+                            tmp_f.seek(remember_cursor)
+                            remember_cursor, prev_action, obs_batch = extract_observations(tmp_f, h_size)
+                            pred_batch, act_batch = extract_predictions_and_actions(tmp_f, pred_h_size)
+
+                            # Write to output files
+                            for i in range(len(prev_action)):
+                                prev_act_f.write("{0},".format(prev_action[i]))
+                            prev_act_f.write("\n")
+                            for i in range(len(obs_batch)):
+                                obs_f.write("{0},{1},".format(obs_batch[i][0], obs_batch[i][1]))
+                            obs_f.write("\n")
+                            for i in range(len(pred_batch)):
+                                pred_f.write("{0},".format(pred_batch[i]))
+                            pred_f.write("\n")
+                            for i in range(len(act_batch)):
+                                act_f.write("{0},".format(act_batch[i]))
+                            act_f.write("\n")
+
+                            # Update while index
+                            idx += 1
+
+
+def preprocess_all_training_data(base_path, h_size, pred_h_size):
+    files_to_parse = [os.path.join(base_path, x) for x in os.listdir(base_path) if "tmp" in x and ".npy" in x]
+    for f in files_to_parse:
+        convert_gridsim_output(f, base_path, h_size, pred_h_size)
 
 
 class WorldModel(object):
@@ -77,7 +101,7 @@ class WorldModel(object):
         self.input_shape = (history_size, 2)  # 2 - observation size (pos_y_dif, in_fov)
         self.input_layer_num_units = 8
         self.mlp_layer_num_units = 8
-        self.gru_layer_num_units = 32
+        self.gru_layer_num_units = 128
         self.mlp_hidden_layer_size = prediction_horizon_size
         self.history_size = history_size
         self.mlp_output_layer_size = 1
@@ -108,21 +132,10 @@ class WorldModel(object):
     def train_network(self, epochs=10, batch_size=256):
         if self.print_summary:
             self.model.summary()
-        generator = StateEstimationDataGenerator(actions_file=os.path.join(os.path.dirname(__file__),
-                                                                           "resources",
-                                                                           "traffic_cars_data",
-                                                                           "state_estimation_data",
-                                                                           "actions.npy"),
-                                                 observations_file=os.path.join(os.path.dirname(__file__),
-                                                                                "resources",
-                                                                                "traffic_cars_data",
-                                                                                "state_estimation_data",
-                                                                                "observations.npy"),
-                                                 predictions_file=os.path.join(os.path.dirname(__file__),
-                                                                               "resources",
-                                                                               "traffic_cars_data",
-                                                                               "state_estimation_data",
-                                                                               "predictions.npy"),
+        generator = StateEstimationDataGenerator(input_file_path=os.path.join(os.path.dirname(__file__),
+                                                                              "resources",
+                                                                              "traffic_cars_data",
+                                                                              "state_estimation_data"),
                                                  batch_size=batch_size,
                                                  history_size=self.history_size,
                                                  prediction_horizon_size=self.mlp_hidden_layer_size)
@@ -142,22 +155,9 @@ class WorldModel(object):
 
 
 if __name__ == "__main__":
-    '''bp = os.path.join(os.path.dirname(__file__), "resources", "traffic_cars_data")
-    fn = ["index", "ego_x", "ego_y", "ego_angle", "ego_acceleration", "ego_vel", "num_tracked_cars"]
-    idx = 0
-    fn.append("car_{0}_x".format(idx))
-    fn.append("car_{0}_y".format(idx))
-    fn.append("car_{0}_angle".format(idx))
-    fn.append("car_{0}_acceleration".format(idx))
-    fn.append("car_{0}_vel".format(idx))
-    fn.append("car_{0}_in_fov".format(idx))
-    fn.append("car_{0}_d_y".format(idx))
-    obs_p = os.path.join(bp, "state_estimation_data", "observations.npy")
-    pred_p = os.path.join(bp, "state_estimation_data", "predictions.npy")
-    act_p = os.path.join(bp, "state_estimation_data", "actions.npy")
-
-    merge_training_files(base_path=bp, fieldnames=fn, prediction_horizon_size=10, history_size=10,
-                         output_path_observations=obs_p, output_path_actions=act_p, output_path_predictions=pred_p)'''
-
     model = WorldModel(prediction_horizon_size=10, history_size=10)
     model.train_network(epochs=30, batch_size=32)
+    '''preprocess_all_training_data(base_path=os.path.join(os.path.dirname(__file__),
+                                                        "resources", "traffic_cars_data", "state_estimation_data"),
+                                 h_size=10,
+                                 pred_h_size=10)'''
