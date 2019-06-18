@@ -155,9 +155,9 @@ class WorldModel(object):
 
 
 if __name__ == "__main__":
-    model = WorldModel(prediction_horizon_size=10, history_size=10)
-    model.train_network(epochs=30, batch_size=32)
-    '''preprocess_all_training_data(base_path=os.path.join(os.path.dirname(__file__),
+    '''model = WorldModel(prediction_horizon_size=10, history_size=10)
+    model.train_network(epochs=30, batch_size=32)'''
+    preprocess_all_training_data(base_path=os.path.join(os.path.dirname(__file__),
                                                         "resources", "traffic_cars_data", "state_estimation_data"),
                                  h_size=10,
-                                 pred_h_size=10)'''
+                                 pred_h_size=10)

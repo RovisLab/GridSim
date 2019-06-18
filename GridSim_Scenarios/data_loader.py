@@ -23,6 +23,7 @@ class StateEstimationDataGenerator(Sequence):
             print("State Estimation Generator: number of samples: {0}, batch_size: {1}, num_steps: {2}".format(
                 self.num_samples, self.batch_size, self.__len__()
             ))
+            print("Data Generator Length: {0}".format(self.__len__()))
 
     def __get_num_samples(self):
         with open(self.action_file, "r") as f:
@@ -120,12 +121,15 @@ class StateEstimationDataGenerator(Sequence):
             for idx in range(len(predictions[0])):
                 pp = list()
                 for idx2 in range(len(predictions)):
-                    try:
-                        pp.append(predictions[idx2][idx])
-                    except IndexError:
-                        print("PULA")
+                    pp.append(predictions[idx2][idx])
                 p.append(pp)
 
         return [np.array(observations), np.array(actions),
                 np.array(prev_actions).reshape((len(prev_actions), self.history_size, 1))], p
+
+    def on_epoch_end(self):
+        self.last_fp_actions = 0
+        self.last_fp_predictions = 0
+        self.last_fp_prev_actions = 0
+        self.last_fp_observations = 0
 

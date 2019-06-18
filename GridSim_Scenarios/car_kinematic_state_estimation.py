@@ -12,7 +12,7 @@ import datetime
 
 class StateEstimatorKinematicModel(Simulator):
     def __init__(self, screen, screen_width, screen_height, num_cars, max_veh_vel, base_velocity,
-                 scenario=GridSimScenario.USER_CONTROL_SINE):
+                 scenario=GridSimScenario.TRAIL_OVERTAKE_STOP):
         # choose your backgrounds
         object_map_path = "resources/backgrounds/highway_fixed_obj.png"
         background_path = "resources/backgrounds/highway_fixed_bigger.png"
