@@ -1,7 +1,7 @@
 import os
 from keras.models import Model, load_model
-from keras.layers import Input, Dense, GRU, Concatenate, concatenate, Reshape, Lambda
-from keras.optimizers import Adam
+from keras.layers import Input, Dense, GRU, Concatenate, Lambda, BatchNormalization
+from keras.optimizers import Adam, SGD
 from data_loader import StateEstimationDataGenerator
 
 
@@ -56,14 +56,21 @@ def extract_predictions_and_actions(tmp_fp, pred_h_size):
     return pred_batch, act_batch
 
 
-def convert_gridsim_output(fp_in, fp_out, h_size, pred_h_size):
+def convert_gridsim_output(fp_in, fp_out, h_size, pred_h_size, validation=False):
     with open(fp_in, "r") as f:
         num_lines = sum(1 for line in f if len(line) > 1)
     with open(fp_in, "r") as tmp_f:
-        with open(os.path.join(fp_out, "actions.npy"), "a") as act_f:
-            with open(os.path.join(fp_out, "predictions.npy"), "a") as pred_f:
-                with open(os.path.join(fp_out, "observations.npy"), "a") as obs_f:
-                    with open(os.path.join(fp_out, "prev_actions.npy"), "a") as prev_act_f:
+        act_fp = os.path.join(fp_out, "actions.npy") if not validation else os.path.join(fp_out, "actions_val.npy")
+        pred_fp = os.path.join(fp_out, "predictions.npy") \
+            if not validation else os.path.join(fp_out, "predictions_val.npy")
+        obs_fp = os.path.join(fp_out, "observations.npy") \
+            if not validation else os.path.join(fp_out, "observations_val.npy")
+        prev_act_fp = os.path.join(fp_out, "prev_actions.npy") \
+            if not validation else os.path.join(fp_out, "prev_actions_val.npy")
+        with open(act_fp, "a") as act_f:
+            with open(pred_fp, "a") as pred_f:
+                with open(obs_fp, "a") as obs_f:
+                    with open(prev_act_fp, "a") as prev_act_f:
                         idx = 0
                         remember_cursor = 0
                         while idx < num_lines - h_size - (pred_h_size - 1):
@@ -96,12 +103,16 @@ def preprocess_all_training_data(base_path, h_size, pred_h_size):
         convert_gridsim_output(f, base_path, h_size, pred_h_size)
 
 
+def create_validation_data(file_path, base_path, h_size, pred_h_size):
+    convert_gridsim_output(file_path, base_path, h_size, pred_h_size, True)
+
+
 class WorldModel(object):
     def __init__(self, prediction_horizon_size, history_size):
         self.input_shape = (history_size, 2)  # 2 - observation size (pos_y_dif, in_fov)
-        self.input_layer_num_units = 8
+        self.input_layer_num_units = 10
         self.mlp_layer_num_units = 8
-        self.gru_layer_num_units = 128
+        self.gru_layer_num_units = 28
         self.mlp_hidden_layer_size = prediction_horizon_size
         self.history_size = history_size
         self.mlp_output_layer_size = 1
@@ -127,7 +138,7 @@ class WorldModel(object):
             mlp_outputs.append(mlp_output)
 
         self.model = Model([input_layer, action_layer, prev_action], mlp_outputs)
-        self.model.compile(optimizer=Adam(lr=0.00005), loss="mean_squared_error", metrics=["accuracy"])
+        self.model.compile(optimizer=Adam(lr=0.0005), loss="mean_squared_error", metrics=["accuracy"])
 
     def train_network(self, epochs=10, batch_size=256):
         if self.print_summary:
@@ -139,7 +150,17 @@ class WorldModel(object):
                                                  batch_size=batch_size,
                                                  history_size=self.history_size,
                                                  prediction_horizon_size=self.mlp_hidden_layer_size)
-        self.model.fit_generator(generator=generator, epochs=epochs)
+        val_generator = StateEstimationDataGenerator(input_file_path=os.path.join(os.path.dirname(__file__),
+                                                                                  "resources",
+                                                                                  "traffic_cars_data",
+                                                                                  "state_estimation_data"),
+                                                     batch_size=batch_size,
+                                                     history_size=self.history_size,
+                                                     prediction_horizon_size=self.mlp_hidden_layer_size,
+                                                     shuffle=False,
+                                                     validation=True)
+
+        self.model.fit_generator(generator=generator, validation_data=val_generator, epochs=epochs)
 
     def evaluate_network(self, x_test, y_test, batch_size=128):
         self.model.evaluate(x_test, y_test, batch_size=batch_size)
@@ -155,9 +176,20 @@ class WorldModel(object):
 
 
 if __name__ == "__main__":
-    '''model = WorldModel(prediction_horizon_size=10, history_size=10)
-    model.train_network(epochs=30, batch_size=32)'''
-    preprocess_all_training_data(base_path=os.path.join(os.path.dirname(__file__),
+    model = WorldModel(prediction_horizon_size=10, history_size=10)
+    model.train_network(epochs=20, batch_size=32)
+
+    '''preprocess_all_training_data(base_path=os.path.join(os.path.dirname(__file__),
                                                         "resources", "traffic_cars_data", "state_estimation_data"),
                                  h_size=10,
-                                 pred_h_size=10)
+                                 pred_h_size=10)'''
+
+    '''create_validation_data(file_path=os.path.join(os.path.dirname(__file__),
+                                                  "resources",
+                                                  "traffic_cars_data",
+                                                  "state_estimation_data",
+                                                  "tmp.npy"),
+                           base_path=os.path.join(os.path.dirname(__file__),
+                                                  "resources", "traffic_cars_data", "state_estimation_data"),
+                           h_size=10,
+                           pred_h_size=10)'''

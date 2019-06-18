@@ -1,15 +1,24 @@
 from keras.utils import Sequence
 import os
 import numpy as np
+import random
 
 
 class StateEstimationDataGenerator(Sequence):
-    def __init__(self, input_file_path, batch_size, history_size, prediction_horizon_size):
+    def __init__(self, input_file_path, batch_size, history_size, prediction_horizon_size, shuffle=True, validation=False):
         self.batch_size = batch_size
-        self.action_file = os.path.join(input_file_path, "actions.npy")
-        self.observation_file = os.path.join(input_file_path, "observations.npy")
-        self.prediction_file = os.path.join(input_file_path, "predictions.npy")
-        self.prev_action_file = os.path.join(input_file_path, "prev_actions.npy")
+        self.shuffle = shuffle
+        self.validation = validation
+        if self.validation:
+            self.shuffle = False
+        self.action_file = os.path.join(input_file_path, "actions.npy") \
+            if not self.validation else os.path.join(input_file_path, "actions_val.npy")
+        self.observation_file = os.path.join(input_file_path, "observations.npy") \
+            if not self.validation else os.path.join(input_file_path, "observations_val.npy")
+        self.prediction_file = os.path.join(input_file_path, "predictions.npy") \
+            if not self.validation else os.path.join(input_file_path, "predictions_val.npy")
+        self.prev_action_file = os.path.join(input_file_path, "prev_actions.npy") \
+            if not self.validation else os.path.join(input_file_path, "prev_actions_val.npy")
         self.num_samples = self.__get_num_samples()
         self.num_samples = self.num_samples if self.num_samples % batch_size == 0 else self.num_samples - (self.num_samples % batch_size)
         self.history_size = history_size
@@ -19,6 +28,9 @@ class StateEstimationDataGenerator(Sequence):
         self.last_fp_observations = 0
         self.last_fp_prev_actions = 0
         self.print_generator_details = True
+        self.file_markers = list()  # (obs, act, prev_act, pred)
+        self.cache_file_markers = list()
+        self.__get_file_markers()
         if self.print_generator_details:
             print("State Estimation Generator: number of samples: {0}, batch_size: {1}, num_steps: {2}".format(
                 self.num_samples, self.batch_size, self.__len__()
@@ -29,6 +41,27 @@ class StateEstimationDataGenerator(Sequence):
         with open(self.action_file, "r") as f:
             num_lines = sum(1 for line in f if len(line) > 1)
         return num_lines
+
+    def __get_file_markers(self):
+        with open(self.action_file, "r") as act_f:
+            with open(self.prediction_file, "r") as pred_f:
+                with open(self.prev_action_file, "r") as prev_act_f:
+                    with open(self.observation_file, "r") as obs_f:
+                        global_idx = 0
+                        data_len = self.__len__()
+                        while global_idx < data_len:
+                            idx = 0
+                            while idx < self.batch_size:
+                                act_f.readline()
+                                pred_f.readline()
+                                prev_act_f.readline()
+                                obs_f.readline()
+                                idx += 1
+                            # (obs, act, prev_act, pred)
+                            self.file_markers.append((obs_f.tell(), act_f.tell(), prev_act_f.tell(), pred_f.tell()))
+                            global_idx += 1
+        for i in range(len(self.file_markers)):
+            self.cache_file_markers.append(self.file_markers[i])
 
     def __len__(self):
         return int(np.floor(self.num_samples / self.batch_size) - self.history_size)
@@ -92,10 +125,12 @@ class StateEstimationDataGenerator(Sequence):
             with open(self.prediction_file, "r") as pred_f:
                 with open(self.prev_action_file, "r") as prev_act_f:
                     with open(self.observation_file, "r") as obs_f:
-                        act_f.seek(self.last_fp_actions)
-                        pred_f.seek(self.last_fp_predictions)
-                        prev_act_f.seek(self.last_fp_prev_actions)
-                        obs_f.seek(self.last_fp_observations)
+                        # (obs, act, prev_act, pred)
+                        obs_f.seek(self.file_markers[0][0])
+                        act_f.seek(self.file_markers[0][1])
+                        prev_act_f.seek(self.file_markers[0][2])
+                        pred_f.seek(self.file_markers[0][3])
+
                         idx = 0
                         while idx < self.batch_size:
                             crt_actions = self.read_actions(act_f.readline())
@@ -111,10 +146,7 @@ class StateEstimationDataGenerator(Sequence):
                             if len(crt_predictions) > 0:
                                 predictions.append(crt_predictions)
                             idx += 1
-                        self.last_fp_observations = obs_f.tell()
-                        self.last_fp_prev_actions = prev_act_f.tell()
-                        self.last_fp_predictions = pred_f.tell()
-                        self.last_fp_actions = act_f.tell()
+                        self.file_markers.pop(0)
 
         p = list()
         if len(predictions):
@@ -128,8 +160,7 @@ class StateEstimationDataGenerator(Sequence):
                 np.array(prev_actions).reshape((len(prev_actions), self.history_size, 1))], p
 
     def on_epoch_end(self):
-        self.last_fp_actions = 0
-        self.last_fp_predictions = 0
-        self.last_fp_prev_actions = 0
-        self.last_fp_observations = 0
-
+        for i in range(len(self.cache_file_markers)):
+            self.file_markers.append(self.cache_file_markers[i])
+        if self.shuffle is True:
+            random.shuffle(self.file_markers)
