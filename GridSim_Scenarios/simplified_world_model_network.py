@@ -1,6 +1,6 @@
 import os
 from keras.models import Model, load_model
-from keras.layers import Input, Dense, GRU, Concatenate, Lambda, BatchNormalization
+from keras.layers import Input, Dense, GRU, Concatenate, Lambda, BatchNormalization, Reshape
 from keras.optimizers import Adam, SGD
 from data_loader import StateEstimationDataGenerator
 
@@ -111,8 +111,8 @@ class WorldModel(object):
     def __init__(self, prediction_horizon_size, history_size):
         self.input_shape = (history_size, 2)  # 2 - observation size (pos_y_dif, in_fov)
         self.input_layer_num_units = 10
-        self.mlp_layer_num_units = 8
-        self.gru_layer_num_units = 28
+        self.mlp_layer_num_units = 4
+        self.gru_layer_num_units = 2
         self.mlp_hidden_layer_size = prediction_horizon_size
         self.history_size = history_size
         self.mlp_output_layer_size = 1
@@ -177,7 +177,7 @@ class WorldModel(object):
 
 if __name__ == "__main__":
     model = WorldModel(prediction_horizon_size=10, history_size=10)
-    model.train_network(epochs=20, batch_size=32)
+    model.train_network(epochs=10, batch_size=32)
 
     '''preprocess_all_training_data(base_path=os.path.join(os.path.dirname(__file__),
                                                         "resources", "traffic_cars_data", "state_estimation_data"),
