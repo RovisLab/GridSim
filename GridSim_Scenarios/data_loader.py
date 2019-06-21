@@ -5,12 +5,13 @@ import random
 
 
 class StateEstimationDataGenerator(Sequence):
-    def __init__(self, input_file_path, batch_size, history_size, prediction_horizon_size, shuffle=True, validation=False):
+    def __init__(self, input_file_path, batch_size, history_size, prediction_horizon_size, shuffle=True, validation=False, normalize=False):
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.validation = validation
         if self.validation:
             self.shuffle = False
+        self.normalize = normalize
         self.action_file = os.path.join(input_file_path, "actions.npy") \
             if not self.validation else os.path.join(input_file_path, "actions_val.npy")
         self.observation_file = os.path.join(input_file_path, "observations.npy") \
@@ -19,6 +20,11 @@ class StateEstimationDataGenerator(Sequence):
             if not self.validation else os.path.join(input_file_path, "predictions_val.npy")
         self.prev_action_file = os.path.join(input_file_path, "prev_actions.npy") \
             if not self.validation else os.path.join(input_file_path, "prev_actions_val.npy")
+        self.observation_file_n = os.path.join(input_file_path, "observations_n.npy")
+        self.action_file_n = os.path.join(input_file_path, "actions_n.npy")
+        self.prediction_file_n = os.path.join(input_file_path, "predictions_n.npy")
+        self.prev_action_file_n = os.path.join(input_file_path, "prev_actions_n.npy")
+
         self.num_samples = self.__get_num_samples()
         self.num_samples = self.num_samples if self.num_samples % batch_size == 0 else self.num_samples - (self.num_samples % batch_size)
         self.history_size = history_size
@@ -29,6 +35,7 @@ class StateEstimationDataGenerator(Sequence):
         self.last_fp_prev_actions = 0
         self.print_generator_details = True
         self.file_markers = list()  # (obs, act, prev_act, pred)
+        self.file_markers.append((0, 0, 0, 0))
         self.cache_file_markers = list()
         self.__get_file_markers()
         if self.print_generator_details:
@@ -36,6 +43,141 @@ class StateEstimationDataGenerator(Sequence):
                 self.num_samples, self.batch_size, self.__len__()
             ))
             print("Data Generator Length: {0}".format(self.__len__()))
+
+        if self.normalize:
+            self.__normalize_actions()
+            self.__normalize_observations()
+            self.__normalize_predictions()
+            self.__normalize_prev_actions()
+
+            self.action_file = self.action_file_n
+            self.observation_file = self.observation_file_n
+            self.prediction_file = self.prediction_file_n
+            self.prev_action_file = self.prev_action_file_n
+
+    def __get_min_max_obs(self):
+        with open(self.observation_file, "r") as obs_f:
+            min_val = 1000
+            max_val = -1000
+            while True:
+                observations = self.read_observations(obs_f.readline())
+                if len(observations) == 0:
+                    break
+                observations = [observations[idx][0] for idx in range(len(observations))]
+                min_obs = min(observations)
+                if min_obs < min_val:
+                    min_val = min_obs
+                max_obs = max(observations)
+                if max_obs > max_val:
+                    max_val = max_obs
+        return min_val, max_val
+
+    def __get_min_max_actions(self):
+        with open(self.action_file, "r") as act_f:
+            min_val = 1000
+            max_val = -1000
+            while True:
+                actions = self.read_actions(act_f.readline())
+                if len(actions) == 0:
+                    break
+                min_act = min(actions)
+                max_act = max(actions)
+                if min_act < min_val:
+                    min_val = min_act
+                if max_act > max_val:
+                    max_val = max_act
+        return min_val, max_val
+
+    def __get_min_max_predictions(self):
+        with open(self.prediction_file, "r") as pred_f:
+            min_val = 1000
+            max_val = -1000
+            while True:
+                predictions = self.read_predictions(pred_f.readline())
+                if len(predictions) == 0:
+                    break
+                min_pred = min(predictions)
+                max_pred = max(predictions)
+                if min_pred < min_val:
+                    min_val = min_pred
+                if max_pred > max_val:
+                    max_val = max_pred
+        return min_val, max_val
+
+    def __get_min_max_prev_actions(self):
+        with open(self.prev_action_file, "r") as prev_f:
+            min_val = 1000
+            max_val = -1000
+            while True:
+                prev_actions = self.read_prev_actions(prev_f.readline())
+                if len(prev_actions) == 0:
+                    break
+                min_prev = min(prev_actions)
+                max_prev = max(prev_actions)
+                if min_prev < min_val:
+                    min_val = min_prev
+                if max_prev > max_val:
+                    max_val = max_prev
+        return min_val, max_val
+
+    def __normalize(self, x, min_val, max_val):
+        return (x + abs(min_val)) / (max_val - min_val)
+
+    def __normalize_observations(self):
+        min_val, max_val = self.__get_min_max_obs()
+        with open(self.observation_file, "r") as obs_f:
+            with open(self.observation_file_n, "w") as obs_fn:
+                while True:
+                    observations = self.read_observations(obs_f.readline())
+                    if len(observations) == 0:
+                        break
+                    for idx in range(0, len(observations)):
+                        observations[idx][0] = self.__normalize(observations[idx][0], min_val, max_val)
+                    for idx in range(len(observations)):
+                        obs_fn.write("{0},{1},".format(observations[idx][0], observations[idx][1]))
+                    obs_fn.write("\n")
+
+    def __normalize_actions(self):
+        min_val, max_val = self.__get_min_max_actions()
+        with open(self.action_file, "r") as act_f:
+            with open(self.action_file_n, "w") as act_fn:
+                while True:
+                    actions = self.read_actions(act_f.readline())
+                    if len(actions) == 0:
+                        break
+                    for idx in range(len(actions)):
+                        actions[idx] = self.__normalize(actions[idx], min_val, max_val)
+                    for act in actions:
+                        act_fn.write("{0},".format(act))
+                    act_fn.write("\n")
+
+    def __normalize_predictions(self):
+        min_val, max_val = self.__get_min_max_predictions()
+        with open(self.prediction_file, "r") as pred_f:
+            with open(self.prediction_file_n, "w") as pred_fn:
+                while True:
+                    predictions = self.read_predictions(pred_f.readline())
+                    if len(predictions) == 0:
+                        break
+                    for idx in range(len(predictions)):
+                        predictions[idx] = self.__normalize(predictions[idx], min_val, max_val)
+                    for pred in predictions:
+                        pred_fn.write("{0},".format(pred))
+                    pred_fn.write("\n")
+
+    def __normalize_prev_actions(self):
+        min_val, max_val = self.__get_min_max_prev_actions()
+        with open(self.prev_action_file, "r") as prev_f:
+            with open(self.prev_action_file_n, "w") as prev_fn:
+                while True:
+                    prev_actions = self.read_prev_actions(prev_f.readline())
+                    if len(prev_actions) == 0:
+                        break
+                    for idx in range(len(prev_actions)):
+                        prev_actions[idx] = self.__normalize(prev_actions[idx], min_val, max_val)
+                    for pred in prev_actions:
+                        prev_fn.write("{0},".format(pred))
+                    prev_fn.write("\n")
 
     def __get_num_samples(self):
         with open(self.action_file, "r") as f:
@@ -73,12 +215,10 @@ class StateEstimationDataGenerator(Sequence):
                 elements.append(float(elem))
             except ValueError:
                 pass
-        elem_idx = 0
         observations = list()
         if len(elements) == 2 * self.history_size:
-            for h_idx in range(self.history_size):
-                observations.append([elements[elem_idx], elements[elem_idx + 1]])
-                elem_idx += 2
+            for h_idx in range(0, 2 * self.history_size, 2):
+                observations.append([elements[h_idx], elements[h_idx + 1]])
         return observations
 
     def read_actions(self, action_str):
@@ -160,6 +300,7 @@ class StateEstimationDataGenerator(Sequence):
                 np.array(prev_actions).reshape((len(prev_actions), self.history_size, 1))], p
 
     def on_epoch_end(self):
+        self.file_markers = list()
         for i in range(len(self.cache_file_markers)):
             self.file_markers.append(self.cache_file_markers[i])
         if self.shuffle is True:

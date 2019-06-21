@@ -1,7 +1,9 @@
 import os
 from keras.models import Model, load_model
-from keras.layers import Input, Dense, GRU, Concatenate, Lambda, BatchNormalization, Reshape
+from keras.layers import Input, Dense, GRU, Concatenate, Lambda, BatchNormalization, Reshape, Flatten
 from keras.optimizers import Adam, SGD
+from keras.utils import plot_model
+import matplotlib.pyplot as plt
 from data_loader import StateEstimationDataGenerator
 
 
@@ -120,7 +122,26 @@ class WorldModel(object):
         self.action_shape = (prediction_horizon_size,)
         self.batch_size = 32
         self.print_summary = True
+        self.draw_statistics = False
         self._build_architecture()
+
+    def _build_architecture2(self):
+        input_layer = Input(shape=self.input_shape)
+        action_layer = Input(shape=self.action_shape)
+        prev_action = Input(shape=(self.history_size, 1))
+        mlp_layer = Concatenate()([input_layer, prev_action])
+        mlp_layer = Dense(512, activation="relu")(mlp_layer)
+        mlp_layer = Flatten()(mlp_layer)
+        mlp_outputs = list()
+        for idx in range(self.mlp_hidden_layer_size):
+            mlp_inputs = Lambda(lambda x: x[:, :idx + 1])(action_layer)
+            mlp_in = Concatenate()([mlp_layer, mlp_inputs])
+            mlp = Dense(units=self.mlp_layer_num_units, activation="relu")(mlp_in)
+            mlp_output = Dense(units=self.mlp_output_layer_size, activation="relu")(mlp)
+            mlp_outputs.append(mlp_output)
+
+        self.model = Model([input_layer, action_layer, prev_action], mlp_outputs)
+        self.model.compile(optimizer=Adam(lr=0.0005), loss="mean_squared_error", metrics=["accuracy"])
 
     def _build_architecture(self):
         input_layer = Input(shape=self.input_shape)
@@ -149,8 +170,10 @@ class WorldModel(object):
                                                                               "state_estimation_data"),
                                                  batch_size=batch_size,
                                                  history_size=self.history_size,
-                                                 prediction_horizon_size=self.mlp_hidden_layer_size)
-        val_generator = StateEstimationDataGenerator(input_file_path=os.path.join(os.path.dirname(__file__),
+                                                 prediction_horizon_size=self.mlp_hidden_layer_size,
+                                                 shuffle=True,
+                                                 normalize=True)
+        '''val_generator = StateEstimationDataGenerator(input_file_path=os.path.join(os.path.dirname(__file__),
                                                                                   "resources",
                                                                                   "traffic_cars_data",
                                                                                   "state_estimation_data"),
@@ -158,9 +181,40 @@ class WorldModel(object):
                                                      history_size=self.history_size,
                                                      prediction_horizon_size=self.mlp_hidden_layer_size,
                                                      shuffle=False,
-                                                     validation=True)
+                                                     validation=True)'''
 
-        self.model.fit_generator(generator=generator, validation_data=val_generator, epochs=epochs)
+        history = self.model.fit_generator(generator=generator, epochs=epochs)
+
+        if self.draw_statistics is True:
+            plot_model(self.model, to_file="model.png")
+
+            outputs = ["dense_2", "dense_4", "dense_6", "dense_8", "dense_10",
+                       "dense_12", "dense_14", "dense_16", "dense_18", "dense_20"]
+            acc_outputs = [x + "_acc" for x in outputs]
+            acc_val_outputs = ["val_" + x + "_acc" for x in outputs]
+            loss_outputs = [x + "_loss" for x in outputs]
+            loss_val_outputs = ["val_" + x + "_loss" for x in outputs]
+            # Plot training & validation accuracy values
+
+            for out, acc, acc_val in zip(outputs, acc_outputs, acc_val_outputs):
+                plt.plot(history.history[acc])
+                plt.plot(history.history[acc_val])
+                plt.title("{0} accuracy".format(out))
+                plt.ylabel('Accuracy')
+                plt.xlabel('Epoch')
+                plt.legend(['Train', 'Test'], loc='upper left')
+                plt.savefig("accuracy_{0}.png".format(out))
+                plt.clf()
+
+            for out, loss, acc_loss in zip(outputs, loss_outputs, loss_val_outputs):
+                plt.plot(history.history[loss])
+                plt.plot(history.history[acc_loss])
+                plt.title('{0} loss'.format(out))
+                plt.ylabel('Loss')
+                plt.xlabel('Epoch')
+                plt.legend(['Train', 'Test'], loc='upper left')
+                plt.savefig("loss_{0}.png".format(out))
+                plt.clf()
 
     def evaluate_network(self, x_test, y_test, batch_size=128):
         self.model.evaluate(x_test, y_test, batch_size=batch_size)
@@ -177,7 +231,7 @@ class WorldModel(object):
 
 if __name__ == "__main__":
     model = WorldModel(prediction_horizon_size=10, history_size=10)
-    model.train_network(epochs=10, batch_size=32)
+    model.train_network(epochs=50, batch_size=32)
 
     '''preprocess_all_training_data(base_path=os.path.join(os.path.dirname(__file__),
                                                         "resources", "traffic_cars_data", "state_estimation_data"),
