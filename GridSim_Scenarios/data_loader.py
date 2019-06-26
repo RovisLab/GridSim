@@ -96,6 +96,8 @@ class StateEstimationDataGenerator(Sequence):
                     obs_fn.write("\n")
 
     def __normalize_actions(self):
+        if os.path.exists(self.action_file_n):
+            return
         min_val, max_val = self.__get_min_max_actions()
         with open(self.action_file, "r") as act_f:
             with open(self.action_file_n, "w") as act_fn:
@@ -110,6 +112,8 @@ class StateEstimationDataGenerator(Sequence):
                     act_fn.write("\n")
 
     def __normalize_predictions(self):
+        if os.path.exists(self.prediction_file_n):
+            return
         min_val, max_val = self.__get_min_max_predictions()
         with open(self.prediction_file, "r") as pred_f:
             with open(self.prediction_file_n, "w") as pred_fn:
@@ -124,6 +128,8 @@ class StateEstimationDataGenerator(Sequence):
                     pred_fn.write("\n")
 
     def __normalize_prev_actions(self):
+        if os.path.exists(self.prev_action_file_n):
+            return
         min_val, max_val = self.__get_min_max_prev_actions()
         with open(self.prev_action_file, "r") as prev_f:
             with open(self.prev_action_file_n, "w") as prev_fn:

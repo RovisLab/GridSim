@@ -1,4 +1,5 @@
 import os
+import random
 
 
 def has_non_zero(arr):
@@ -6,6 +7,47 @@ def has_non_zero(arr):
         if in_fov != 0:
             return True
     return False
+
+
+def variable_sequence_length_preprocessing(tmp_fp, pred_size, min_seq_len=10, max_seq_len=100, padding=True):
+    """
+    Return an increasing sequence of training data
+    :param tmp_fp: temporary data file recorded with GridSim
+    :param min_seq_len: minimum length of generated sequences
+    :param max_seq_len: maximum length of generated sequences
+    :param pred_size: prediction horizon size
+    :param padding: if True, sequences will be zero-padded to max_seq_len size
+    :return: history, prev_actions, actions, predictions
+    """
+    with open(tmp_fp, "r") as tmp_f:
+        lines = tmp_f.readlines()
+    elements = list()
+    for line in lines:
+        delta, in_fov, action = line.split(",")
+        elements.append((float(delta), float(in_fov), float(action)))
+    elem_idx = 0
+    history = list()
+    actions = list()
+    prev_actions = list()
+    predictions = list()
+    while elem_idx < len(elements) - pred_size:
+        if min_seq_len < 0:
+            min_seq_len = 0
+        if max_seq_len + elem_idx > len(elements) - pred_size:
+            max_seq_len = len(elements) - (pred_size + elem_idx)
+        sequence_len = random.randrange(min_seq_len, max_seq_len)
+        h = [[delta, in_fov] for delta, in_fov, _ in elements[elem_idx:elem_idx+sequence_len]]
+        prev_a = elements[elem_idx+sequence_len][2]
+        a = [action for _, _, action in elements[elem_idx + sequence_len: elem_idx + sequence_len + pred_size]]
+        p = [delta for delta, _, _ in elements[elem_idx + sequence_len: elem_idx + sequence_len + pred_size]]
+        if padding:
+            h.extend((max_seq_len - len(h)) * [0.0, 0.0])
+        history.append(h)
+        actions.append(a)
+        prev_actions.append(prev_a)
+        predictions.append(p)
+        elem_idx += 1
+    return history, prev_actions, actions, predictions
 
 
 def preprocess_temp_file(tmp_fp, h_size, pred_size):

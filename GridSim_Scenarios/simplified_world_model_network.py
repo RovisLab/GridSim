@@ -3,12 +3,17 @@ from keras.models import Model, load_model
 from keras.layers import Input, Dense, GRU, Concatenate, Lambda, BatchNormalization, Reshape, Flatten
 from keras.optimizers import Adam, SGD
 from keras.utils import plot_model
+from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 import matplotlib.pyplot as plt
 from data_loader import StateEstimationDataGenerator
 
 
 class WorldModel(object):
     def __init__(self, prediction_horizon_size, history_size, validation=False):
+        self.state_estimation_data_path = os.path.join(os.path.dirname(__file__),
+                                                       "resources",
+                                                       "traffic_cars_data",
+                                                       "state_estimation_data")
         self.input_shape = (history_size, 1)
         self.fov_shape = (history_size, 1)
         self.mlp_layer_num_units = 10
@@ -64,37 +69,43 @@ class WorldModel(object):
             mlp_outputs.append(mlp_output)
 
         self.model = Model([input_layer, fov_layer, action_layer, prev_action], mlp_outputs)
-        self.model.compile(optimizer=Adam(lr=0.0005), loss="mean_squared_error", metrics=["mae", "accuracy"])
+        self.model.compile(optimizer=Adam(lr=0.00005), loss="mean_squared_error", metrics=["mae", "accuracy"])
 
     def train_network(self, epochs=10, batch_size=256):
         if self.print_summary:
             self.model.summary()
-        generator = StateEstimationDataGenerator(input_file_path=os.path.join(os.path.dirname(__file__),
-                                                                              "resources",
-                                                                              "traffic_cars_data",
-                                                                              "state_estimation_data"),
+
+        es = EarlyStopping(monitor="val_loss", mode="min", verbose=1, patience=50)
+        fp = self.state_estimation_data_path + "/" + "models" + "/weights.{epoch:02d}-{val_loss:.2f}.hdf5"
+        mc = ModelCheckpoint(filepath=fp, save_best_only=True, monitor="val_loss", mode="min")
+        rlr = ReduceLROnPlateau(monitor="val_loss", patience=50, factor=0.00001)
+
+        callbacks = [es, mc, rlr]
+
+        generator = StateEstimationDataGenerator(input_file_path=self.state_estimation_data_path,
                                                  batch_size=batch_size,
                                                  history_size=self.history_size,
                                                  prediction_horizon_size=self.mlp_hidden_layer_size,
                                                  shuffle=True,
                                                  normalize=True)
         if self.validation:
-            val_generator = StateEstimationDataGenerator(input_file_path=os.path.join(os.path.dirname(__file__),
-                                                                                      "resources", "traffic_cars_data",
-                                                                                      "state_estimation_data"),
+            val_generator = StateEstimationDataGenerator(input_file_path=self.state_estimation_data_path,
                                                          batch_size=batch_size,
                                                          history_size=self.history_size,
                                                          prediction_horizon_size=self.mlp_hidden_layer_size,
                                                          shuffle=False,
                                                          validation=True,
                                                          normalize=True)
-            history = self.model.fit_generator(generator=generator, epochs=epochs,
-                                               validation_data=val_generator, verbose=2)
+            history = self.model.fit_generator(generator=generator,
+                                               epochs=epochs,
+                                               validation_data=val_generator,
+                                               verbose=2,
+                                               callbacks=callbacks)
         else:
-            history = self.model.fit_generator(generator=generator, epochs=epochs, verbose=2)
+            history = self.model.fit_generator(generator=generator, epochs=epochs, verbose=2, callbacks=callbacks)
 
         if self.draw_statistics is True:
-            plot_model(self.model, to_file="model.png")
+            plot_model(self.model, to_file=os.path.join(self.state_estimation_data_path, "perf", "model.png"))
 
             outputs = ["dense_6", "dense_8", "dense_10", "dense_12", "dense_14",
                        "dense_16", "dense_18", "dense_20", "dense_22", "dense_24"]
@@ -116,7 +127,7 @@ class WorldModel(object):
                     plt.legend(['Mean Absolute Error'], loc='upper left')
                 else:
                     plt.legend(["Mean Absolute Error", "Validation Mean Absolute Error"], loc="upper left")
-                plt.savefig("mae_{0}.png".format(out))
+                plt.savefig(os.path.join(self.state_estimation_data_path, "perf", "mae_{0}.png".format(out)))
                 plt.clf()
 
             for out, loss, acc_loss in zip(outputs, loss_outputs, loss_val_outputs):
@@ -130,7 +141,7 @@ class WorldModel(object):
                     plt.legend(['Train Loss', 'Test Loss'], loc='upper left')
                 else:
                     plt.legend(["Train Loss"], loc="upper left")
-                plt.savefig("loss_{0}.png".format(out))
+                plt.savefig(os.path.join(self.state_estimation_data_path, "perf", "loss_{0}.png".format(out)))
                 plt.clf()
 
     def evaluate_network(self, x_test, y_test, batch_size=128):
@@ -148,4 +159,4 @@ class WorldModel(object):
 
 if __name__ == "__main__":
     model = WorldModel(prediction_horizon_size=10, history_size=10, validation=True)
-    model.train_network(epochs=300, batch_size=32)
+    model.train_network(epochs=10000, batch_size=32)
