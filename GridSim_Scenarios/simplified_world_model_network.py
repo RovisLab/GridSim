@@ -1,6 +1,6 @@
 import os
 from keras.models import Model, load_model
-from keras.layers import Input, Dense, GRU, Concatenate, Lambda, BatchNormalization, Reshape, Flatten
+from keras.layers import Input, Dense, GRU, Concatenate, Lambda, BatchNormalization, Reshape, Flatten, Masking
 from keras.optimizers import Adam, SGD
 from keras.utils import plot_model
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
@@ -14,8 +14,8 @@ class WorldModel(object):
                                                        "resources",
                                                        "traffic_cars_data",
                                                        "state_estimation_data")
-        self.input_shape = (history_size, 1)
-        self.fov_shape = (history_size, 1)
+        self.input_shape = (None, 1)
+        self.fov_shape = (None, 1)
         self.mlp_layer_num_units = 10
         self.gru_layer_num_units = 32
         self.mlp_hidden_layer_size = prediction_horizon_size
@@ -54,7 +54,7 @@ class WorldModel(object):
         fov_layer_ = Dense(10, activation="softmax")(fov_layer)
         action_layer = Input(shape=self.action_shape)
         action_layer_ = Dense(10, activation="relu")(action_layer)
-        prev_action = Input(shape=(self.history_size, 1))
+        prev_action = Input(shape=(None, 1))
         prev_action_ = Dense(10, activation="relu")(prev_action)
         input_layer_ = Concatenate()([input_layer_, fov_layer_])
         gru_input = Concatenate()([input_layer_, prev_action_])
@@ -86,16 +86,14 @@ class WorldModel(object):
                                                  batch_size=batch_size,
                                                  history_size=self.history_size,
                                                  prediction_horizon_size=self.mlp_hidden_layer_size,
-                                                 shuffle=True,
-                                                 normalize=True)
+                                                 shuffle=True)
         if self.validation:
             val_generator = StateEstimationDataGenerator(input_file_path=self.state_estimation_data_path,
                                                          batch_size=batch_size,
                                                          history_size=self.history_size,
                                                          prediction_horizon_size=self.mlp_hidden_layer_size,
                                                          shuffle=False,
-                                                         validation=True,
-                                                         normalize=True)
+                                                         validation=True)
             history = self.model.fit_generator(generator=generator,
                                                epochs=epochs,
                                                validation_data=val_generator,

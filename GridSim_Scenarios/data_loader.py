@@ -1,17 +1,17 @@
 from keras.utils import Sequence
+from keras.preprocessing.sequence import pad_sequences
 import os
 import numpy as np
 import random
 
 
 class StateEstimationDataGenerator(Sequence):
-    def __init__(self, input_file_path, batch_size, history_size, prediction_horizon_size, shuffle=True, validation=False, normalize=False):
+    def __init__(self, input_file_path, batch_size, history_size, prediction_horizon_size, shuffle=True, validation=False):
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.validation = validation
         if self.validation:
             self.shuffle = False
-        self.normalize = normalize
         self.action_file = os.path.join(input_file_path, "actions.npy") \
             if not self.validation else os.path.join(input_file_path, "actions_val.npy")
 
@@ -24,20 +24,9 @@ class StateEstimationDataGenerator(Sequence):
         self.prev_action_file = os.path.join(input_file_path, "prev_actions.npy") \
             if not self.validation else os.path.join(input_file_path, "prev_actions_val.npy")
 
-        self.observation_file_n = os.path.join(input_file_path, "observations_n.npy") \
-            if not self.validation else os.path.join(input_file_path, "observations_val_n.npy")
-
-        self.action_file_n = os.path.join(input_file_path, "actions_n.npy") \
-            if not self.validation else os.path.join(input_file_path, "actions_val_n.npy")
-
-        self.prediction_file_n = os.path.join(input_file_path, "predictions_n.npy") \
-            if not self.validation else os.path.join(input_file_path, "predictions_val_n.npy")
-
-        self.prev_action_file_n = os.path.join(input_file_path, "prev_actions_n.npy") \
-            if not self.validation else os.path.join(input_file_path, "prev_actions_val_n.npy")
-
         self.num_samples = self.__get_num_samples()
-        self.num_samples = self.num_samples if self.num_samples % batch_size == 0 else self.num_samples - (self.num_samples % batch_size)
+        self.num_samples = self.num_samples if self.num_samples % batch_size == 0 \
+            else self.num_samples - (self.num_samples % batch_size)
         self.history_size = history_size
         self.prediction_horizon_size = prediction_horizon_size
         self.last_fp_actions = 0
@@ -54,94 +43,7 @@ class StateEstimationDataGenerator(Sequence):
             ))
             print("Data Generator Length: {0}".format(self.__len__()))
 
-        if self.normalize:
-            self.__normalize_actions()
-            self.__normalize_observations()
-            self.__normalize_predictions()
-            self.__normalize_prev_actions()
-
-            self.action_file = self.action_file_n
-            self.observation_file = self.observation_file_n
-            self.prediction_file = self.prediction_file_n
-            self.prev_action_file = self.prev_action_file_n
         self.__get_file_markers()
-
-    def __get_min_max_obs(self):
-        return -16.0, 0.0
-
-    def __get_min_max_actions(self):
-        return -25.0, 25.0
-
-    def __get_min_max_predictions(self):
-        return -16.0, 0.0
-
-    def __get_min_max_prev_actions(self):
-        return -25.0, 25.0
-
-    def __normalize(self, x, min_val, max_val):
-        return (x + abs(min_val)) / (max_val - min_val) if x != 0.0 else 0.0
-
-    def __normalize_observations(self):
-        min_val, max_val = self.__get_min_max_obs()
-        with open(self.observation_file, "r") as obs_f:
-            with open(self.observation_file_n, "w") as obs_fn:
-                while True:
-                    observations = self.read_observations(obs_f.readline())
-                    if len(observations[0]) == 0:
-                        break
-                    for idx in range(0, len(observations[0])):
-                        observations[0][idx] = self.__normalize(observations[0][idx], min_val, max_val)
-                    for idx in range(len(observations[0])):
-                        obs_fn.write("{0},{1},".format(observations[0][idx], observations[1][idx]))
-                    obs_fn.write("\n")
-
-    def __normalize_actions(self):
-        if os.path.exists(self.action_file_n):
-            return
-        min_val, max_val = self.__get_min_max_actions()
-        with open(self.action_file, "r") as act_f:
-            with open(self.action_file_n, "w") as act_fn:
-                while True:
-                    actions = self.read_actions(act_f.readline())
-                    if len(actions) == 0:
-                        break
-                    for idx in range(len(actions)):
-                        actions[idx] = self.__normalize(actions[idx], min_val, max_val)
-                    for act in actions:
-                        act_fn.write("{0},".format(act))
-                    act_fn.write("\n")
-
-    def __normalize_predictions(self):
-        if os.path.exists(self.prediction_file_n):
-            return
-        min_val, max_val = self.__get_min_max_predictions()
-        with open(self.prediction_file, "r") as pred_f:
-            with open(self.prediction_file_n, "w") as pred_fn:
-                while True:
-                    predictions = self.read_predictions(pred_f.readline())
-                    if len(predictions) == 0:
-                        break
-                    for idx in range(len(predictions)):
-                        predictions[idx] = self.__normalize(predictions[idx], min_val, max_val)
-                    for pred in predictions:
-                        pred_fn.write("{0},".format(pred))
-                    pred_fn.write("\n")
-
-    def __normalize_prev_actions(self):
-        if os.path.exists(self.prev_action_file_n):
-            return
-        min_val, max_val = self.__get_min_max_prev_actions()
-        with open(self.prev_action_file, "r") as prev_f:
-            with open(self.prev_action_file_n, "w") as prev_fn:
-                while True:
-                    prev_actions = self.read_prev_actions(prev_f.readline())
-                    if len(prev_actions) == 0:
-                        break
-                    for idx in range(len(prev_actions)):
-                        prev_actions[idx] = self.__normalize(prev_actions[idx], min_val, max_val)
-                    for pred in prev_actions:
-                        prev_fn.write("{0},".format(pred))
-                    prev_fn.write("\n")
 
     def __get_num_samples(self):
         with open(self.action_file, "r") as f:
@@ -181,10 +83,9 @@ class StateEstimationDataGenerator(Sequence):
                 pass
         observations = list()
         in_fovs = list()
-        if len(elements) == 2 * self.history_size:
-            for h_idx in range(0, 2 * self.history_size, 2):
-                observations.append(elements[h_idx])
-                in_fovs.append(elements[h_idx + 1])
+        for h_idx in range(0, len(elements), 2):
+            observations.append(elements[h_idx])
+            in_fovs.append(elements[h_idx + 1])
         return observations, in_fovs
 
     def read_actions(self, action_str):
@@ -265,10 +166,23 @@ class StateEstimationDataGenerator(Sequence):
                     pp.append(predictions[idx2][idx])
                 p.append(pp)
 
-        return [np.array(observations).reshape((len(observations), len(observations[0]), 1)),
-                np.array(in_fovs).reshape((len(in_fovs), len(in_fovs[0]), 1)),
-                np.array(actions),
-                np.array(prev_actions).reshape((len(prev_actions), self.history_size, 1))], p
+        return self._format_data(observations, in_fovs, actions, prev_actions, p)
+
+    def _format_data(self, observations, in_fovs, actions, prev_actions, p):
+        for idx in range(len(observations)):
+            for idx2 in range(len(observations[idx])):
+                observations[idx][idx2] = [observations[idx][idx2]]
+        for idx in range(len(in_fovs)):
+            for idx2 in range(len(in_fovs[idx])):
+                in_fovs[idx][idx2] = [in_fovs[idx][idx2]]
+        for idx in range(len(prev_actions)):
+            for idx2 in range(len(prev_actions[idx])):
+                prev_actions[idx][idx2] = [prev_actions[idx][idx2]]
+        observations = pad_sequences(observations)
+        in_fovs = pad_sequences(in_fovs)
+        actions = np.array(actions)
+        prev_actions = pad_sequences(prev_actions)
+        return [observations, in_fovs, actions, prev_actions], p
 
     def on_epoch_end(self):
         self.file_markers = list()
