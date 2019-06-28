@@ -49,7 +49,7 @@ def variable_sequence_length_preprocessing(tmp_fp,
         p = [delta for delta, _, _ in elements[seq_end:len(elements)]]
         return [h], [prev_a], [a], [p]
 
-    while elem_idx < len(elements) - pred_size:
+    while True:
         if min_seq_len < 0:
             min_seq_len = 0
         if max_seq_len + elem_idx > len(elements) - pred_size:
@@ -58,6 +58,9 @@ def variable_sequence_length_preprocessing(tmp_fp,
             sequence_len = random.randrange(min_seq_len, max_seq_len)
         elif min_seq_len >= max_seq_len:
             sequence_len = min_seq_len
+
+        if elem_idx + sequence_len + pred_size > len(elements):
+            break
 
         h = [[delta, in_fov] for delta, in_fov, _ in elements[elem_idx:elem_idx+sequence_len]]
         prev_a = len(h) * [elements[elem_idx+sequence_len][2]]
@@ -259,5 +262,5 @@ class SequenceProcessor(object):
 
 
 if __name__ == "__main__":
-    sp = SequenceProcessor(full_seq=False, preprocessor=variable_sequence_length_preprocessing, normalize=True)
+    sp = SequenceProcessor(full_seq=True, normalize=True, h_size=100)
     sp.process_all_data()

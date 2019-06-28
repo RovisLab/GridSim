@@ -9,7 +9,7 @@ from data_loader import StateEstimationDataGenerator
 
 
 class WorldModel(object):
-    def __init__(self, prediction_horizon_size, history_size, validation=False):
+    def __init__(self, prediction_horizon_size, validation=False):
         self.state_estimation_data_path = os.path.join(os.path.dirname(__file__),
                                                        "resources",
                                                        "traffic_cars_data",
@@ -19,7 +19,6 @@ class WorldModel(object):
         self.mlp_layer_num_units = 10
         self.gru_layer_num_units = 32
         self.mlp_hidden_layer_size = prediction_horizon_size
-        self.history_size = history_size
         self.mlp_output_layer_size = 1
         self.model = None
         self.action_shape = (prediction_horizon_size,)
@@ -28,24 +27,6 @@ class WorldModel(object):
         self.draw_statistics = True
         self.validation = validation
         self._build_architecture()
-
-    def _build_architecture2(self):
-        input_layer = Input(shape=(self.history_size, 1))  # observation
-        action_layer = Input(shape=self.action_shape)
-        prev_action = Input(shape=(self.history_size, 1))
-        mlp_layer = Concatenate()([input_layer, prev_action])
-        mlp_layer = Dense(512, activation="relu")(mlp_layer)
-        mlp_layer = Flatten()(mlp_layer)
-        mlp_outputs = list()
-        for idx in range(self.mlp_hidden_layer_size):
-            mlp_inputs = Lambda(lambda x: x[:, :idx + 1])(action_layer)
-            mlp_in = Concatenate()([mlp_layer, mlp_inputs])
-            mlp = Dense(units=self.mlp_layer_num_units, activation="relu")(mlp_in)
-            mlp_output = Dense(units=self.mlp_output_layer_size, activation="relu")(mlp)
-            mlp_outputs.append(mlp_output)
-
-        self.model = Model([input_layer, action_layer, prev_action], mlp_outputs)
-        self.model.compile(optimizer=Adam(lr=0.00005), loss="mean_squared_error", metrics=["accuracy"])
 
     def _build_architecture(self):
         input_layer = Input(shape=self.input_shape)
@@ -58,7 +39,6 @@ class WorldModel(object):
         prev_action_ = Dense(10, activation="relu")(prev_action)
         input_layer_ = Concatenate()([input_layer_, fov_layer_])
         gru_input = Concatenate()([input_layer_, prev_action_])
-        # input_gru = Reshape(target_shape=(self.history_size, int(gru_input.shape[1])))(gru_input)
         gru = GRU(units=self.gru_layer_num_units)(gru_input)
         mlp_outputs = list()
         for idx in range(self.mlp_hidden_layer_size):
@@ -84,13 +64,11 @@ class WorldModel(object):
 
         generator = StateEstimationDataGenerator(input_file_path=self.state_estimation_data_path,
                                                  batch_size=batch_size,
-                                                 history_size=self.history_size,
                                                  prediction_horizon_size=self.mlp_hidden_layer_size,
                                                  shuffle=True)
         if self.validation:
             val_generator = StateEstimationDataGenerator(input_file_path=self.state_estimation_data_path,
                                                          batch_size=batch_size,
-                                                         history_size=self.history_size,
                                                          prediction_horizon_size=self.mlp_hidden_layer_size,
                                                          shuffle=False,
                                                          validation=True)
@@ -156,5 +134,5 @@ class WorldModel(object):
 
 
 if __name__ == "__main__":
-    model = WorldModel(prediction_horizon_size=10, history_size=10, validation=True)
+    model = WorldModel(prediction_horizon_size=10, validation=True)
     model.train_network(epochs=10000, batch_size=32)

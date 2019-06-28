@@ -134,7 +134,7 @@ def write_distances_as_int(fname, distances_vector):
             writer = csv.writer(csvfile, lineterminator='\n')
             distances_vector = distances_vector.astype(int)
             writer.writerow(distances_vector)
-    except :
+    except:
         raise OSError('path to distances.txt does not exists')
 
 

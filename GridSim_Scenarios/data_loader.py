@@ -6,7 +6,7 @@ import random
 
 
 class StateEstimationDataGenerator(Sequence):
-    def __init__(self, input_file_path, batch_size, history_size, prediction_horizon_size, shuffle=True, validation=False):
+    def __init__(self, input_file_path, batch_size, prediction_horizon_size, shuffle=True, validation=False):
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.validation = validation
@@ -27,7 +27,6 @@ class StateEstimationDataGenerator(Sequence):
         self.num_samples = self.__get_num_samples()
         self.num_samples = self.num_samples if self.num_samples % batch_size == 0 \
             else self.num_samples - (self.num_samples % batch_size)
-        self.history_size = history_size
         self.prediction_horizon_size = prediction_horizon_size
         self.last_fp_actions = 0
         self.last_fp_predictions = 0
@@ -72,7 +71,7 @@ class StateEstimationDataGenerator(Sequence):
             self.cache_file_markers.append(self.file_markers[i])
 
     def __len__(self):
-        return int(np.floor(self.num_samples / self.batch_size) - self.history_size)
+        return int(np.floor(self.num_samples / self.batch_size))
 
     def read_observations(self, obs_str):
         elements = list()
