@@ -5,7 +5,7 @@ import numpy as np
 import random
 
 
-class StateEstimationDataGenerator(Sequence):
+class StateEstimationDataGeneratorImpl(object):
     def __init__(self, input_file_path, batch_size, prediction_horizon_size, shuffle=True, validation=False):
         self.batch_size = batch_size
         self.shuffle = shuffle
@@ -28,20 +28,10 @@ class StateEstimationDataGenerator(Sequence):
         self.num_samples = self.num_samples if self.num_samples % batch_size == 0 \
             else self.num_samples - (self.num_samples % batch_size)
         self.prediction_horizon_size = prediction_horizon_size
-        self.last_fp_actions = 0
-        self.last_fp_predictions = 0
-        self.last_fp_observations = 0
-        self.last_fp_prev_actions = 0
         self.print_generator_details = True
         self.file_markers = list()  # (obs, act, prev_act, pred)
         self.file_markers.append((0, 0, 0, 0))
         self.cache_file_markers = list()
-        if self.print_generator_details:
-            print("State Estimation Generator: number of samples: {0}, batch_size: {1}, num_steps: {2}".format(
-                self.num_samples, self.batch_size, self.__len__()
-            ))
-            print("Data Generator Length: {0}".format(self.__len__()))
-
         self.__get_file_markers()
 
     def __get_num_samples(self):
@@ -69,9 +59,6 @@ class StateEstimationDataGenerator(Sequence):
                             global_idx += 1
         for i in range(len(self.file_markers)):
             self.cache_file_markers.append(self.file_markers[i])
-
-    def __len__(self):
-        return int(np.floor(self.num_samples / self.batch_size))
 
     def read_observations(self, obs_str):
         elements = list()
@@ -122,7 +109,10 @@ class StateEstimationDataGenerator(Sequence):
                 pass
         return elements
 
-    def __getitem__(self, item):
+    def __len__(self):
+        return int(np.floor(self.num_samples / self.batch_size))
+
+    def get_batch(self):
         actions = list()
         observations = list()
         in_fovs = list()
@@ -156,6 +146,88 @@ class StateEstimationDataGenerator(Sequence):
                                 predictions.append(crt_predictions)
                             idx += 1
                         self.file_markers.pop(0)
+        return actions, observations, in_fovs, prev_actions, predictions
+
+
+class StateEstimationSensorArrayDataGeneratorImpl(StateEstimationDataGeneratorImpl):
+    def __init__(self, input_file_path, batch_size, prediction_horizon_size, shuffle=True, validation=False):
+        super(StateEstimationSensorArrayDataGeneratorImpl, self).__init__(input_file_path=input_file_path,
+                                                                          batch_size=batch_size,
+                                                                          prediction_horizon_size=prediction_horizon_size,
+                                                                          shuffle=shuffle,
+                                                                          validation=validation)
+
+    def read_observations(self, obs_str):
+        elements = list()
+        for elem in obs_str.split(","):
+            try:
+                elements.append(float(elem))
+            except ValueError:
+                pass
+        seq_num = elements[0]
+        seq_size = elements[1]
+        observations = list()
+        for h_idx in range(2, len(elements)):
+            observations.append(elements[h_idx])
+        observations = np.array(observations).reshape((seq_num, 2, seq_size)).tolist()
+        return observations
+
+    def get_batch(self):
+        actions = list()
+        observations = list()
+        prev_actions = list()
+        predictions = list()
+        with open(self.action_file, "r") as act_f:
+            with open(self.prediction_file, "r") as pred_f:
+                with open(self.prev_action_file, "r") as prev_act_f:
+                    with open(self.observation_file, "r") as obs_f:
+                        obs_f.seek(self.file_markers[0][0])
+                        act_f.seek(self.file_markers[0][1])
+                        prev_act_f.seek(self.file_markers[0][2])
+                        pred_f.seek(self.file_markers[0][3])
+
+                        idx = 0
+                        while idx < self.batch_size:
+                            crt_actions = self.read_actions(act_f.readline())
+                            crt_prev_actions = self.read_prev_actions(prev_act_f.readline())
+                            crt_predictions = self.read_predictions(pred_f.readline())
+                            crt_observations = self.read_observations(obs_f.readline())
+                            if len(crt_actions) > 0:
+                                actions.append(crt_actions)
+                            if len(crt_observations) > 0:
+                                observations.append(crt_observations)
+                            if len(crt_prev_actions) > 0:
+                                prev_actions.append(crt_prev_actions)
+                            if len(crt_predictions) > 0:
+                                predictions.append(crt_predictions)
+                            idx += 1
+                        self.file_markers.pop(0)
+        return actions, observations, prev_actions, predictions
+
+
+class StateEstimationSensorArrayDataGenerator(Sequence):
+    def __init__(self, input_file_path, batch_size, prediction_horizon_size, shuffle=True, validation=False):
+        self.__impl__ = StateEstimationSensorArrayDataGeneratorImpl(input_file_path=input_file_path,
+                                                                    batch_size=batch_size,
+                                                                    prediction_horizon_size=prediction_horizon_size,
+                                                                    shuffle=shuffle,
+                                                                    validation=validation)
+
+    def __len__(self):
+        return self.__impl__.__len__()
+
+    def __getitem__(self, item):
+        actions, observations, prev_actions, predictions = self.__impl__.get_batch()
+        return self._format_data(observations, actions, prev_actions, predictions)
+
+    def _format_data(self, observations, actions, prev_actions, predictions):
+        observations = [observations[:len(observations) // 2], observations[len(observations) // 2:]]
+        for idx in range(len(prev_actions)):
+            for idx2 in range(len(prev_actions[idx])):
+                prev_actions[idx][idx2] = [prev_actions[idx][idx2]]
+        observations = pad_sequences(observations)
+        actions = np.array(actions)
+        prev_actions = pad_sequences(prev_actions)
 
         p = list()
         if len(predictions):
@@ -165,9 +237,32 @@ class StateEstimationDataGenerator(Sequence):
                     pp.append(predictions[idx2][idx])
                 p.append(pp)
 
-        return self._format_data(observations, in_fovs, actions, prev_actions, p)
+        return [observations, actions, prev_actions], p
 
-    def _format_data(self, observations, in_fovs, actions, prev_actions, p):
+    def on_epoch_end(self):
+        self.__impl__.file_markers = list()
+        for i in range(len(self.__impl__.cache_file_markers)):
+            self.__impl__.file_markers.append(self.__impl__.cache_file_markers[i])
+        if self.__impl__.shuffle is True:
+            random.shuffle(self.__impl__.file_markers)
+
+
+class StateEstimationDataGenerator(Sequence):
+    def __init__(self, input_file_path, batch_size, prediction_horizon_size, shuffle=True, validation=False):
+        self.__impl__ = StateEstimationDataGeneratorImpl(input_file_path=input_file_path,
+                                                         batch_size=batch_size,
+                                                         prediction_horizon_size=prediction_horizon_size,
+                                                         shuffle=shuffle,
+                                                         validation=validation)
+
+    def __len__(self):
+        return self.__impl__.__len__()
+
+    def __getitem__(self, item):
+        actions, observations, in_fovs, prev_actions, predictions = self.__impl__.get_batch()
+        return self._format_data(observations, in_fovs, actions, prev_actions, predictions)
+
+    def _format_data(self, observations, in_fovs, actions, prev_actions, predictions):
         for idx in range(len(observations)):
             for idx2 in range(len(observations[idx])):
                 observations[idx][idx2] = [observations[idx][idx2]]
@@ -181,11 +276,20 @@ class StateEstimationDataGenerator(Sequence):
         in_fovs = pad_sequences(in_fovs)
         actions = np.array(actions)
         prev_actions = pad_sequences(prev_actions)
+
+        p = list()
+        if len(predictions):
+            for idx in range(len(predictions[0])):
+                pp = list()
+                for idx2 in range(len(predictions)):
+                    pp.append(predictions[idx2][idx])
+                p.append(pp)
+
         return [observations, in_fovs, actions, prev_actions], p
 
     def on_epoch_end(self):
-        self.file_markers = list()
-        for i in range(len(self.cache_file_markers)):
-            self.file_markers.append(self.cache_file_markers[i])
-        if self.shuffle is True:
-            random.shuffle(self.file_markers)
+        self.__impl__.file_markers = list()
+        for i in range(len(self.__impl__.cache_file_markers)):
+            self.__impl__.file_markers.append(self.__impl__.cache_file_markers[i])
+        if self.__impl__.shuffle is True:
+            random.shuffle(self.__impl__.file_markers)
