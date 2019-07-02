@@ -217,8 +217,6 @@ class Simulator:
                                     self.sensor_size)
         offroad_edge_points = []
 
-        obstacles = list()
-
         for end_point in arc_points:
             points_to_be_checked = list(get_equidistant_points(mid_of_front_axle, end_point, 25))
             check = False
@@ -238,13 +236,11 @@ class Simulator:
                 pygame.draw.line(self.screen, (0, 255, 0), mid_of_front_axle, arc_points[index], True)
                 pygame.draw.line(act_mask, (0, 255, 0), mid_of_front_axle, arc_points[index], True)
             else:
-                obstacles.append(offroad_edge_points[index])
                 pygame.draw.line(self.screen, (0, 255, 0), mid_of_front_axle, offroad_edge_points[index], True)
                 pygame.draw.line(act_mask, (0, 255, 0), mid_of_front_axle, offroad_edge_points[index], True)
                 if display_obstacle_on_sensor is True:
                     pygame.draw.line(self.screen, (255, 0, 0), offroad_edge_points[index], arc_points[index], True)
                     pygame.draw.line(act_mask, (255, 0, 0), offroad_edge_points[index], arc_points[index], True)
-        return obstacles
 
     def optimized_rear_sensor(self, act_mask, display_obstacle_on_sensor=False):
         """
@@ -263,7 +259,6 @@ class Simulator:
                                     self.sensor_size)
 
         offroad_edge_points = []
-        obstacles = list()
 
         for end_point in arc_points:
             points_to_be_checked = list(get_equidistant_points(mid_of_rear_axle, end_point, 25))
@@ -285,13 +280,11 @@ class Simulator:
                 pygame.draw.line(self.screen, (0, 255, 0), mid_of_rear_axle, arc_points[index], True)
                 pygame.draw.line(act_mask, (0, 255, 0), mid_of_rear_axle, arc_points[index], True)
             else:
-                obstacles.append(offroad_edge_points[index])
                 pygame.draw.line(self.screen, (0, 255, 0), mid_of_rear_axle, offroad_edge_points[index], True)
                 pygame.draw.line(act_mask, (0, 255, 0), mid_of_rear_axle, offroad_edge_points[index], True)
                 if display_obstacle_on_sensor is True:
                     pygame.draw.line(self.screen, (255, 0, 0), offroad_edge_points[index], arc_points[index], True)
                     pygame.draw.line(act_mask, (255, 0, 0), offroad_edge_points[index], arc_points[index], True)
-        return obstacles
 
     def initialize_activation_model(self, desired_layer_output):
         """
@@ -517,15 +510,9 @@ class Simulator:
         this function checks if any sensor has been activated
         :return:
         """
-        obstacles = list()
-        if self.cbox_front_sensor.isChecked():
-            obstacles.extend(self.optimized_front_sensor(self.sensor_mask, display_obstacle_on_sensor=True))
-        if self.cbox_rear_sensor.isChecked():
-            obstacles.extend(self.optimized_rear_sensor(self.sensor_mask, display_obstacle_on_sensor=True))
         if self.cbox_distance_sensor.isChecked():
             if self.cbox_rear_sensor.isChecked() is False and self.cbox_front_sensor.isChecked() is False:
                 self.rays_sensor_distances = self.enable_sensor(self.car, self.screen, self.rays_nr)
-        return obstacles
 
     def record_data_function(self, index):
         """

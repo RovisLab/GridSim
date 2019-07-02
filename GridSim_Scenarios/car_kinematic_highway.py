@@ -174,8 +174,7 @@ class HighwaySimulator(Simulator):
                 available_positions_in_fov.remove(car_pos)
 
                 traffic_car = Car(x=car_pos[0], y=car_pos[1], onehot_encoding=self.generate_onehot_encoding(),
-                                  acc_patern=AgentAccelerationPattern(mode=AgentAccelerationPattern.SINUSOIDAL,
-                                                                      max_speed=15),
+                                  acc_patern=AgentAccelerationPattern(mode=AgentAccelerationPattern.SINUSOIDAL),
                                   max_acceleration=15,
                                   max_velocity=15)
                 traffic_car.angle = -90
