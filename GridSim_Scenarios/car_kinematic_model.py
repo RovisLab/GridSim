@@ -110,6 +110,9 @@ class Simulator:
 
         self.sensor_len = 200
 
+        self.front_sensor_distances = None
+        self.rear_sensor_distances = None
+
     def on_road(self, car, screen):
         Ox = 32
         Oy = 16
@@ -217,6 +220,8 @@ class Simulator:
                                     self.sensor_size)
         offroad_edge_points = []
 
+        self.front_sensor_distances = np.array([])
+
         for end_point in arc_points:
             points_to_be_checked = list(get_equidistant_points(mid_of_front_axle, end_point, 25))
             check = False
@@ -230,6 +235,9 @@ class Simulator:
                 offroad_edge_points.append(end_point)
             else:
                 offroad_edge_points.append(line_point)
+
+        for edge_point in offroad_edge_points:
+            self.front_sensor_distances = np.append(self.front_sensor_distances, euclidean_norm(mid_of_front_axle, edge_point))
 
         for index in range(0, len(arc_points)):
             if offroad_edge_points[index] == arc_points[index]:
@@ -259,6 +267,7 @@ class Simulator:
                                     self.sensor_size)
 
         offroad_edge_points = []
+        self.rear_sensor_distances = np.array([])
 
         for end_point in arc_points:
             points_to_be_checked = list(get_equidistant_points(mid_of_rear_axle, end_point, 25))
@@ -274,6 +283,9 @@ class Simulator:
                 offroad_edge_points.append(end_point)
             else:
                 offroad_edge_points.append(line_point)
+
+        for edge_point in offroad_edge_points:
+            self.rear_sensor_distances = np.append(self.rear_sensor_distances, euclidean_norm(mid_of_rear_axle, edge_point))
 
         for index in range(0, len(arc_points)):
             if offroad_edge_points[index] == arc_points[index]:
@@ -510,6 +522,10 @@ class Simulator:
         this function checks if any sensor has been activated
         :return:
         """
+        if self.cbox_front_sensor.isChecked():
+            self.optimized_front_sensor(self.sensor_mask, display_obstacle_on_sensor=True)
+        if self.cbox_rear_sensor.isChecked():
+            self.optimized_rear_sensor(self.sensor_mask, display_obstacle_on_sensor=True)
         if self.cbox_distance_sensor.isChecked():
             if self.cbox_rear_sensor.isChecked() is False and self.cbox_front_sensor.isChecked() is False:
                 self.rays_sensor_distances = self.enable_sensor(self.car, self.screen, self.rays_nr)

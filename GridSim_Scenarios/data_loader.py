@@ -169,8 +169,21 @@ class StateEstimationSensorArrayDataGeneratorImpl(StateEstimationDataGeneratorIm
         observations = list()
         for h_idx in range(2, len(elements)):
             observations.append(elements[h_idx])
-        observations = np.array(observations).reshape((seq_num, 2, seq_size)).tolist()
+        observations = np.array(observations).reshape((int(seq_num), 2, int(seq_size))).tolist()
         return observations
+
+    def read_predictions(self, pred_str):
+        elements = list()
+        for elem in pred_str.split(","):
+            try:
+                elements.append(float(elem))
+            except ValueError:
+                pass
+        predictions = list()
+        for h_idx in range(len(elements)):
+            predictions.append(elements[h_idx])
+        predictions = np.array(predictions).reshape((self.prediction_horizon_size, -1)).tolist()
+        return predictions
 
     def get_batch(self):
         actions = list()
@@ -221,7 +234,6 @@ class StateEstimationSensorArrayDataGenerator(Sequence):
         return self._format_data(observations, actions, prev_actions, predictions)
 
     def _format_data(self, observations, actions, prev_actions, predictions):
-        observations = [observations[:len(observations) // 2], observations[len(observations) // 2:]]
         for idx in range(len(prev_actions)):
             for idx2 in range(len(prev_actions[idx])):
                 prev_actions[idx][idx2] = [prev_actions[idx][idx2]]

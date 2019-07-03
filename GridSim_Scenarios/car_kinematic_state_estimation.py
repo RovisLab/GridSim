@@ -49,15 +49,20 @@ class StateEstimatorKinematicModel(Simulator):
         car_x = 0
         car_y = 27
 
-        super(StateEstimatorKinematicModel, self).__init__(screen, screen_width, screen_height, car_x, car_y, 50, 32,
-                                                           False, True, None,
-                                                           os.path.join(os.path.dirname(__file__),
-                                                                        "resources",
-                                                                        "traffic_cars_data",
-                                                                        "state_estimation_data"),
-                                                           True, False, False,
-                                                           object_map_path, background_path, car_image_path,
-                                                           traffic_car_image_path, object_car_image_path)
+        super(StateEstimatorKinematicModel, self).__init__(screen=screen, screen_width=screen_width,
+                                                           screen_height=screen_height, car_x=car_x, car_y=car_y,
+                                                           sensor_size=50, rays_nr=32,
+                                                           activations=False, record_data=True, replay_data_path=None,
+                                                           state_buf_path=os.path.join(os.path.dirname(__file__),
+                                                                                       "resources",
+                                                                                       "traffic_cars_data",
+                                                                                       "state_estimation_data"),
+                                                           sensors=True, distance_sensor=False, enabled_menu=False,
+                                                           object_map_path=object_map_path,
+                                                           background_path=background_path,
+                                                           car_image_path=car_image_path,
+                                                           traffic_car_image_path=traffic_car_image_path,
+                                                           object_car_image_path=object_car_image_path)
         self.car_image = pygame.transform.scale(self.car_image, (42, 20))
         self.traffic_car_image = pygame.transform.scale(self.traffic_car_image, (42, 20))
         self.object_car_image = pygame.transform.scale(self.object_car_image, (42, 20))
@@ -76,8 +81,6 @@ class StateEstimatorKinematicModel(Simulator):
         self.scenario = scenario
         self.cycle_num = 0
         self.mode = mode
-        self.front_rays = list()
-        self.rear_rays = list()
 
         if os.path.exists(os.path.join(self.state_buf_path, "tmp.npy")):
             parts = os.path.splitext(os.path.join(self.state_buf_path, "tmp.npy"))
@@ -182,85 +185,15 @@ class StateEstimatorKinematicModel(Simulator):
                                                    1.0 if self._object_in_sensor_fov() else 0.0,
                                                    self.car.velocity.x))
 
-    def draw_front_sensor_with_rays(self, car, number_of_rays, display_obstacle_on_sensor=False):
-        center_rect = Collision.center_rect(self.screen_width, self.screen_height)
-        mid_of_front_axle = Collision.point_rotation(car, 10, 16, center_rect)
-
-        arc_points = get_arc_points(mid_of_front_axle, 150, radians(90 + car.angle), radians(270 + car.angle), number_of_rays)
-
-        offroad_edge_points = []
-        front_sensor_distances = np.array([])
-
-        for end_point in arc_points:
-            points_to_be_checked = list(get_equidistant_points(mid_of_front_axle, end_point, 25))
-
-            check = False
-
-            for line_point in points_to_be_checked:
-                if np.array_equal(self.screen.get_at((int(line_point[0]), int(line_point[1]))), self.bkd_color):
-                    check = True
-                    break
-            if check is False:
-                offroad_edge_points.append(end_point)
-            else:
-                offroad_edge_points.append(line_point)
-
-        for edge_point in offroad_edge_points:
-            front_sensor_distances = np.append(front_sensor_distances, euclidean_norm(mid_of_front_axle, edge_point))
-
-        for index in range(0, len(arc_points)):
-            if offroad_edge_points[index] == arc_points[index]:
-                pygame.draw.aaline(self.screen, (0, 255, 0), mid_of_front_axle, arc_points[index], True)
-            else:
-                pygame.draw.aaline(self.screen, (0, 255, 0), mid_of_front_axle, offroad_edge_points[index], True)
-                if display_obstacle_on_sensor is True:
-                    pygame.draw.aaline(self.screen, (255, 0, 0), offroad_edge_points[index], arc_points[index], True)
-        return front_sensor_distances
-
-    def draw_rear_sensor_with_rays(self, car, number_of_rays, display_obstacle_on_sensor=False):
-        self.screen.blit(self.object_mask, (0, 0))
-        center_rect = Collision.center_rect(self.screen_width, self.screen_height)
-        mid_of_rear_axle = Collision.point_rotation(car, 55, 16, center_rect)
-
-        arc_points = get_arc_points(mid_of_rear_axle, 150, radians(-90 + car.angle), radians(90 + car.angle), number_of_rays)
-
-        offroad_edge_points = []
-        rear_sensor_distances = np.array([])
-
-        for end_point in arc_points:
-            points_to_be_checked = list(get_equidistant_points(mid_of_rear_axle, end_point, 25))
-
-            check = False
-
-            for line_point in points_to_be_checked:
-                if np.array_equal(self.screen.get_at((int(line_point[0]), int(line_point[1]))), self.bkd_color):
-                    check = True
-                    break
-            if check is False:
-                offroad_edge_points.append(end_point)
-            else:
-                offroad_edge_points.append(line_point)
-
-        for edge_point in offroad_edge_points:
-            rear_sensor_distances = np.append(rear_sensor_distances, euclidean_norm(mid_of_rear_axle, edge_point))
-
-        for index in range(0, len(arc_points)):
-            if offroad_edge_points[index] == arc_points[index]:
-                pygame.draw.aaline(self.screen, (0, 255, 0), mid_of_rear_axle, arc_points[index], True)
-            else:
-                pygame.draw.aaline(self.screen, (0, 255, 0), mid_of_rear_axle, offroad_edge_points[index], True)
-                if display_obstacle_on_sensor is True:
-                    pygame.draw.aaline(self.screen, (255, 0, 0), offroad_edge_points[index], arc_points[index], True)
-        return rear_sensor_distances
-
     def _write_sensor_array_data(self):
         if os.path.exists(self.state_buf_path) and os.path.isdir(self.state_buf_path):
             with open(os.path.join(self.state_buf_path, "tmp.npy"), "a") as tmp_f:
-                tmp_f.write("{0},".format(len(self.front_rays)))
-                for x in self.front_rays:
+                tmp_f.write("{0},".format(len(self.front_sensor_distances)))
+                for x in self.front_sensor_distances:
                     tmp_f.write("{0},".format(x))
-                for x in self.rear_rays:
+                for x in self.rear_sensor_distances:
                     tmp_f.write("{0},".format(x))
+                tmp_f.write("{0}".format(self.car.velocity.x))
                 tmp_f.write("\n")
 
     def record_data_function(self, index):
@@ -288,9 +221,6 @@ class StateEstimatorKinematicModel(Simulator):
             # take user input for our car
             # self.key_handler(self.dt, [])
 
-            self.front_rays = self.draw_front_sensor_with_rays(self.car, self.rays_nr, True)
-            self.rear_rays = self.draw_rear_sensor_with_rays(self.car, self.rays_nr, True)
-
             # draw the environment
             self.draw_sim_environment(print_coords=True)
 
@@ -298,13 +228,12 @@ class StateEstimatorKinematicModel(Simulator):
             self.scenario_handler()
             self.car.update(self.dt)
 
+            # check the sensors for activations
+            self.activate_sensors()
+
             # save information from frames
             if self.record_data is True:
                 self.record_data_function(self.cycle_num)
-
-            # check the sensors for activations
-            if self.mode == TrainingDataType.SIMPLIFIED:
-                self.activate_sensors()
 
             # leave the custom function tab always open in case you want to add something from another simulator
             # that implements this simulator

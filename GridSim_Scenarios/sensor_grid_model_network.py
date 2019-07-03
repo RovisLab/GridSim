@@ -1,5 +1,5 @@
 import os
-from keras.layers import Conv2D, Dense, GRU, Concatenate, Lambda, Masking, Input, Reshape
+from keras.layers import Conv2D, Dense, GRU, Concatenate, Lambda, Masking, Input, Reshape, Flatten
 from keras.models import Model
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
@@ -26,10 +26,10 @@ class WorldModel(object):
         self.mlp_layer_num_units = 10
         self.gru_layer_num_units = 32
         self.mlp_hidden_layer_size = prediction_horizon_size
-        self.mlp_output_layer_size = 1
+        self.mlp_output_layer_units = 2 * num_rays
         self.model = None
         self.draw_statistics = False
-        self.print_summary = False
+        self.print_summary = True
         self._build_architecture()
 
     def _build_architecture(self):
@@ -49,7 +49,7 @@ class WorldModel(object):
             mlp_inputs = Lambda(lambda x: x[:, :idx + 1])(action_dense)
             mlp_in = Concatenate()([gru, mlp_inputs])
             mlp = Dense(units=self.mlp_layer_num_units, activation="relu")(mlp_in)
-            mlp_output = Dense(units=self.mlp_output_layer_size, activation="relu")(mlp)
+            mlp_output = Dense(units=self.mlp_output_layer_units, activation="relu")(mlp)
             mlp_outputs.append(mlp_output)
 
         self.model = Model([input_layer, action_layer, prev_action_layer], mlp_outputs)
@@ -126,4 +126,5 @@ class WorldModel(object):
 
 
 if __name__ == "__main__":
-    model = WorldModel(prediction_horizon_size=10, num_rays=16)
+    model = WorldModel(prediction_horizon_size=10, num_rays=50)
+    model.train_model(epochs=100, batch_size=32)
