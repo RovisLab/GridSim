@@ -85,7 +85,7 @@ class CitySimulator(Simulator):
                          2 * self.bgWidth,
                          2 * self.bgHeight)
 
-    def run(self):
+    def run(self, human_control=True):
         super().run()
         # initialize traffic
         if self.traffic is True:
@@ -114,7 +114,8 @@ class CitySimulator(Simulator):
             self.event_handler(mouse_button_pressed)
 
             # LOGIC
-            self.key_handler(self.dt, rs_pos_list)
+            if human_control is True:
+                self.key_handler(self.dt, rs_pos_list)
 
             # DRAWING
             stage_pos = self.draw_sim_environment(print_coords=True)

@@ -346,7 +346,7 @@ class HighwaySimulator(Simulator):
         self.draw_highway_traffic()
         self.update_accidents_count()
 
-    def run(self):
+    def run(self, human_control=True):
         super().run()
 
         rs_pos_list = [[6, 27, 0.0], [5, 27, 180.0], [4, 24, 180.0], [4, 23, 0.0], [5, 27, 90.0], [5, 27, 0.0]]
@@ -370,7 +370,8 @@ class HighwaySimulator(Simulator):
             self.event_handler(mouse_button_pressed)
 
             # LOGIC
-            self.key_handler(self.dt, rs_pos_list)
+            if human_control is True:
+                self.key_handler(self.dt, rs_pos_list)
 
             # DRAWING
             self.draw_sim_environment(print_coords=True)
