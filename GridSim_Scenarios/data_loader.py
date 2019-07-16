@@ -169,7 +169,7 @@ class StateEstimationSensorArrayDataGeneratorImpl(StateEstimationDataGeneratorIm
         observations = list()
         for h_idx in range(2, len(elements)):
             observations.append(elements[h_idx])
-        observations = np.array(observations).reshape((int(seq_num), 2, int(seq_size))).tolist()
+        observations = np.array(observations).reshape((int(seq_num), 2 * int(seq_size))).tolist()
         return observations
 
     def read_predictions(self, pred_str):
@@ -209,8 +209,8 @@ class StateEstimationSensorArrayDataGeneratorImpl(StateEstimationDataGeneratorIm
                                 actions.append(crt_actions)
                             if len(crt_observations) > 0:
                                 observations.append(crt_observations)
-                            if len(crt_prev_actions) > 0:
-                                prev_actions.append(crt_prev_actions)
+                            # if len(crt_prev_actions) > 0:
+                            prev_actions.append(crt_prev_actions)
                             if len(crt_predictions) > 0:
                                 predictions.append(crt_predictions)
                             idx += 1
@@ -239,6 +239,7 @@ class StateEstimationSensorArrayDataGenerator(Sequence):
                 prev_actions[idx][idx2] = [prev_actions[idx][idx2]]
         observations = pad_sequences(observations)
         actions = np.array(actions)
+        #prev_actions = np.array(prev_actions)
         prev_actions = pad_sequences(prev_actions)
 
         p = list()
@@ -248,7 +249,6 @@ class StateEstimationSensorArrayDataGenerator(Sequence):
                 for idx2 in range(len(predictions)):
                     pp.append(predictions[idx2][idx])
                 p.append(pp)
-
         return [observations, actions, prev_actions], p
 
     def on_epoch_end(self):

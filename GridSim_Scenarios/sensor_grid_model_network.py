@@ -1,5 +1,5 @@
 import os
-from keras.layers import Conv2D, Dense, GRU, Concatenate, Lambda, Masking, Input, Reshape, Flatten
+from keras.layers import Conv2D, Dense, GRU, Concatenate, Lambda, Masking, Input, Reshape, Flatten, Conv1D
 from keras.models import Model
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
@@ -19,9 +19,9 @@ class WorldModel(object):
                                                        "state_estimation_data")
         self.prediction_horizon_size = prediction_horizon_size
         self.validation = validation
-        self.input_shape = (None, 2, num_rays)
+        self.input_shape = (None, 2 * num_rays,)
         self.action_shape = (self.prediction_horizon_size,)
-        self.prev_action_shape = (None, 1)
+        self.prev_action_shape = (None, 1,)
         self.gru_num_units = 128
         self.mlp_layer_num_units = 10
         self.gru_layer_num_units = 32
@@ -34,14 +34,39 @@ class WorldModel(object):
 
     def _build_architecture(self):
         input_layer = Input(shape=self.input_shape)
-        conv_layer1 = Conv2D(filters=16, kernel_size=(3, 3), strides=(1, 1), padding="same")(input_layer)
-        conv_layer2 = Conv2D(filters=16, kernel_size=(3, 3), strides=(2, 2), padding="same")(conv_layer1)
-        conv_fc = Dense(units=256, activation="relu")(conv_layer2)
-        conv_fc = Reshape(target_shape=(int(-1), int(conv_fc.shape[2]) * int(conv_fc.shape[3])))(conv_fc)
+        dense_input = Dense(units=256)(input_layer)
         action_layer = Input(shape=self.action_shape)
         prev_action_layer = Input(shape=self.prev_action_shape)
         action_dense = Dense(10, activation="relu")(action_layer)
         prev_action_dense = Dense(10, activation="relu")(prev_action_layer)
+        gru_input = Concatenate()([dense_input, prev_action_dense])
+        gru = GRU(units=self.gru_num_units)(gru_input)
+        mlp_outputs = list()
+        for idx in range(self.mlp_hidden_layer_size):
+            mlp_inputs = Lambda(lambda x: x[:, :idx + 1])(action_dense)
+            mlp_in = Concatenate()([gru, mlp_inputs])
+            mlp = Dense(units=self.mlp_layer_num_units, activation="relu")(mlp_in)
+            mlp_output = Dense(units=self.mlp_output_layer_units, activation="relu")(mlp)
+            mlp_outputs.append(mlp_output)
+
+        self.model = Model([input_layer, action_layer, prev_action_layer], mlp_outputs)
+        self.model.compile(optimizer=Adam(lr=0.00005), loss="mean_squared_error", metrics=["mae", "accuracy"])
+
+    def _build_architecture2(self):
+        input_layer = Input(shape=self.input_shape)
+        print("input shape = {0}".format(input_layer.shape))
+        conv_layer1 = Conv1D(filters=16, kernel_size=3, strides=1, padding="same")(input_layer)
+        conv_layer2 = Conv1D(filters=16, kernel_size=3, strides=2, padding="same")(conv_layer1)
+        conv_fc = Dense(units=256, activation="relu")(conv_layer2)
+        print("ConvNet shape = {0}".format(conv_fc.shape))
+        #conv_fc = Reshape(target_shape=(-1, int(conv_fc.shape[2]) * int(conv_fc.shape[3])))(conv_fc)
+        #print("Reshaped conv shape = {0}".format(conv_fc.shape))
+        action_layer = Input(shape=self.action_shape)
+        prev_action_layer = Input(shape=self.prev_action_shape)
+        print("prev_act shape = {0}".format(prev_action_layer.shape))
+        action_dense = Dense(10, activation="relu")(action_layer)
+        prev_action_dense = Dense(10, activation="relu")(prev_action_layer)
+        print("prev_act_d shape = {0}".format(prev_action_dense.shape))
         gru_input = Concatenate()([conv_fc, prev_action_dense])
         gru = GRU(units=self.gru_num_units)(gru_input)
         mlp_outputs = list()
