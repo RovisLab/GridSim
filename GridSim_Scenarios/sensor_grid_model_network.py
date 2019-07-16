@@ -84,12 +84,12 @@ class WorldModel(object):
         if self.print_summary:
             self.model.summary()
 
-        es = EarlyStopping(monitor="val_loss", mode="min", verbose=1, patience=50)
+        '''es = EarlyStopping(monitor="val_loss", mode="min", verbose=1, patience=50)
         fp = self.state_estimation_data_path + "/" + "models" + "/weights.{epoch:02d}-{val_loss:.2f}.hdf5"
         mc = ModelCheckpoint(filepath=fp, save_best_only=True, monitor="val_loss", mode="min")
         rlr = ReduceLROnPlateau(monitor="val_loss", patience=50, factor=0.00001)
 
-        callbacks = [es, mc, rlr]
+        callbacks = [es, mc, rlr]'''
 
         generator = StateEstimationSensorArrayDataGenerator(input_file_path=self.state_estimation_data_path,
                                                             batch_size=batch_size,
@@ -104,11 +104,15 @@ class WorldModel(object):
             history = self.model.fit_generator(generator=generator,
                                                epochs=epochs,
                                                validation_data=val_generator,
-                                               verbose=2,
-                                               callbacks=callbacks)
+                                               verbose=2)
+            '''
+            ,callbacks=callbacks)
+            '''
         else:
-            history = self.model.fit_generator(generator=generator, epochs=epochs, verbose=2, callbacks=callbacks)
-
+            history = self.model.fit_generator(generator=generator, epochs=epochs, verbose=2)
+            '''
+            , callbacks=callbacks)
+            '''
         if self.draw_statistics is True:
             plot_model(self.model, to_file=os.path.join(self.state_estimation_data_path, "perf", "model.png"))
 
