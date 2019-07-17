@@ -31,20 +31,39 @@ def get_elements_from_gridsim_record_file(tmp_fp):
     return elements
 
 
-def get_elements_sensor_array_gridsim_record_file(tmp_fp):
-    with open(tmp_fp, "r") as tmp_f:
-        lines = tmp_f.readlines()
+def get_elements_sensor_array_gridsim_record_file(fp):
+    if not isinstance(fp, tuple):
+        raise Exception("Wrong data type. Needs tuple")
+    dist_front = fp[0]
+    dist_rear = fp[1]
+    action_file = fp[2]
+    with open(dist_front, "r") as tmp_ff:
+        lines_front = tmp_ff.readlines()
+    with open(dist_rear, "r") as tmp_fr:
+        lines_rear = tmp_fr.readlines()
+    with open(action_file, "r") as tmp_a:
+        lines_actions = tmp_a.readlines()
     elements = list()
-    for line in lines:
-        elem = list()
-        for e in line.split(","):
+    for line_front, line_rear, action in zip(lines_front, lines_rear, lines_actions):
+        front_elem = list()
+        rear_elem = list()
+        actions = list()
+        for f in line_front.split(","):
             try:
-                elem.append(float(e))
+                front_elem.append(float(f))
             except ValueError:
                 pass
-        elem.pop(0)  # remove size of record
-        action = elem.pop(len(elem) - 1)
-        elements.append((elem[:len(elem) // 2], elem[len(elem) // 2:], action))
+        for f in line_rear.split(","):
+            try:
+                rear_elem.append(float(f))
+            except ValueError:
+                pass
+        for a in action.split(","):
+            try:
+                actions.append(float(a))
+            except ValueError:
+                pass
+        elements.append((front_elem, rear_elem, actions))
     return elements
 
 
@@ -71,10 +90,10 @@ def sensor_array_fixed_sequence_preprocessing(tmp_fp,
                 for front, rear, a in h:
                     h_elems.append((front, rear))
                 history.append(h_elems)
-                prev_actions.append(h_size * [h[-1][2]])
+                prev_actions.append(h_size * [h[-1][2]][0])
                 for front, rear, a in p:
                     p_elems.append((front, rear))
-                    a_elems.append(a)
+                    a_elems.append(a[0])
                 actions.append(a_elems)
                 predictions.append(p_elems)
         idx += 1
@@ -286,6 +305,31 @@ def writer_simplified(base_path, history, prev_act, actions, predictions, val=Fa
                         act_f.write("\n")
 
 
+def get_training_files_simplified(base_path):
+    files = [os.path.join(base_path, f) for f in os.listdir(base_path) if "tmp" in f and f.endswith(".npy")]
+    val_files = list()
+    for f in files:
+        if "_val" in f:
+            val_files.append(f)
+            files.remove(f)
+    return [files, val_files]
+
+
+def get_training_files_sensor_array(base_path):
+    front_filenames = [os.path.join(base_path, f) for f in os.listdir(base_path) if "front_sensor_distances" in f]
+    rear_filenames = [os.path.join(base_path, f) for f in os.listdir(base_path) if "rear_sensor_distances" in f]
+    vel_filenames = [os.path.join(base_path, f) for f in os.listdir(base_path) if "velocity" in f]
+    groups = list()
+    val_groups = list()
+    for ff, fr, fv in zip(front_filenames, rear_filenames, vel_filenames):
+        if "_val" in ff and "_val" in fr and "_val" in fv:
+            val_groups.append((ff, fr, fv))
+        else:
+            groups.append((ff, fr, fv))
+
+    return [groups, val_groups]
+
+
 class SequenceProcessor(object):
     def __init__(self,
                  base_path=os.path.join(os.path.dirname(__file__),
@@ -300,7 +344,8 @@ class SequenceProcessor(object):
                  constant_seq=True,
                  normalize=False,
                  preprocessor=preprocess_temp_file,
-                 writer=writer_simplified):
+                 writer=writer_simplified,
+                 training_files=get_training_files_simplified):
         self.base_path = base_path
         self.h_size = h_size
         self.pred_size = pred_size
@@ -311,6 +356,7 @@ class SequenceProcessor(object):
         self.normalize = normalize
         self.preprocessor = preprocessor
         self.writer = writer
+        self.training_files = training_files
         self.validation = False
 
     def __normalize(self, history, prev_actions, actions, predictions):
@@ -334,13 +380,8 @@ class SequenceProcessor(object):
         self.writer(self.base_path, history, prev_actions, actions, predictions, True)
 
     def process_all_data(self):
-        files = [os.path.join(self.base_path, f) for f in os.listdir(self.base_path) if "tmp" in f and f.endswith(".npy")]
-        val_file = None
-        for f in files:
-            if "_val" in f:
-                val_file = f
-                files.remove(f)
-        if val_file is not None:
+        files, val_files = self.training_files(self.base_path)
+        if len(val_files) > 0:
             self.validation = True
 
         for f in files:
@@ -358,12 +399,14 @@ class SequenceProcessor(object):
             self.writer(self.base_path, history, prev_actions, actions, predictions)
 
         if self.validation:
-            self._create_validation_data(val_file)
+            for f in val_files:
+                self._create_validation_data(f)
 
 
 if __name__ == "__main__":
     sp = SequenceProcessor(normalize=False,
                            h_size=10,
                            preprocessor=sensor_array_fixed_sequence_preprocessing,
-                           writer=writer_sensor_array)
+                           writer=writer_sensor_array,
+                           training_files=get_training_files_sensor_array)
     sp.process_all_data()

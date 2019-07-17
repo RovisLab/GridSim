@@ -11,25 +11,6 @@ import datetime
 from math import sin, cos, radians
 from math_util import get_equidistant_points, get_arc_points, euclidean_norm
 
-class Collision:
-    @staticmethod
-    def offroad(car, bounding_factor=1.2):
-        car.velocity.x = -car.velocity.x / bounding_factor
-        car.velocity.y = -car.velocity.y / bounding_factor
-        car.acceleration = 0
-
-    @staticmethod
-    def center_rect(width, height):
-        x = int(width / 2)
-        y = int(height / 2)
-        return x, y
-
-    @staticmethod
-    def point_rotation(car, x, y, center_rect, ox = 32, oy = 16):
-        rotated_x = center_rect[0] + int((x - ox) * cos(radians(-car.angle))) + int((y - oy) * sin(radians(-car.angle)))
-        rotated_y = center_rect[1] + int((x - ox) * sin(radians(-car.angle))) - int((y - oy) * cos(radians(-car.angle)))
-        return rotated_x, rotated_y
-
 
 class TrainingDataType(object):
     SIMPLIFIED = 0
@@ -82,10 +63,26 @@ class StateEstimatorKinematicModel(Simulator):
         self.cycle_num = 0
         self.mode = mode
 
-        if os.path.exists(os.path.join(self.state_buf_path, "tmp.npy")):
-            parts = os.path.splitext(os.path.join(self.state_buf_path, "tmp.npy"))
-            new_name = parts[0] + "_{0}".format(str(datetime.datetime.now().time()).replace(":", "_").replace(".", "_")) + parts[1]
-            os.rename(os.path.join(self.state_buf_path, "tmp.npy"), new_name)
+        self._rename_training_files()
+
+    def _rename_training_files(self):
+        if self.mode == TrainingDataType.SIMPLIFIED:
+            if os.path.exists(os.path.join(self.state_buf_path, "tmp.npy")):
+                parts = os.path.splitext(os.path.join(self.state_buf_path, "tmp.npy"))
+                new_name = parts[0] + "_{0}".format(
+                    str(datetime.datetime.now().time()).replace(":", "_").replace(".", "_")) + parts[1]
+                os.rename(os.path.join(self.state_buf_path, "tmp.npy"), new_name)
+        elif self.mode == TrainingDataType.SENSOR_RAYS:
+            if os.path.exists(os.path.join(self.state_buf_path, "front_sensor_distances.npy")):
+                idx = 0
+                while os.path.exists(os.path.join(self.state_buf_path, "front_sensor_distances_{0}.npy".format(idx))):
+                    idx += 1
+                os.rename(os.path.join(self.state_buf_path, "front_sensor_distances.npy"),
+                          os.path.join(self.state_buf_path, "front_sensor_distances_{0}.npy".format(idx)))
+                os.rename(os.path.join(self.state_buf_path, "rear_sensor_distances.npy"),
+                          os.path.join(self.state_buf_path, "rear_sensor_distances_{0}.npy".format(idx)))
+                os.rename(os.path.join(self.state_buf_path, "velocity.npy"),
+                          os.path.join(self.state_buf_path, "velocity_{0}.npy".format(idx)))
 
     def _get_available_fov_vehicles(self):
         x = np.arange(31, 52, 3)
@@ -187,14 +184,16 @@ class StateEstimatorKinematicModel(Simulator):
 
     def _write_sensor_array_data(self):
         if os.path.exists(self.state_buf_path) and os.path.isdir(self.state_buf_path):
-            with open(os.path.join(self.state_buf_path, "tmp.npy"), "a") as tmp_f:
-                tmp_f.write("{0},".format(len(self.front_sensor_distances)))
-                for x in self.front_sensor_distances:
-                    tmp_f.write("{0},".format(x))
-                for x in self.rear_sensor_distances:
-                    tmp_f.write("{0},".format(x))
-                tmp_f.write("{0}".format(self.car.velocity.x))
-                tmp_f.write("\n")
+            with open(os.path.join(self.state_buf_path, "front_sensor_distances.npy"), "a") as tmp_ff:
+                with open(os.path.join(self.state_buf_path, "rear_sensor_distances.npy"), "a") as tmp_fr:
+                    for x in self.front_sensor_distances:
+                        tmp_ff.write("{0},".format(x))
+                    for x in self.rear_sensor_distances:
+                        tmp_fr.write("{0},".format(x))
+                    tmp_ff.write("\n")
+                    tmp_fr.write("\n")
+            with open(os.path.join(self.state_buf_path, "velocity.npy"), "a") as vel_f:
+                vel_f.write("{0}\n".format(self.car.velocity.x))
 
     def record_data_function(self, index):
         if self.mode == TrainingDataType.SIMPLIFIED:

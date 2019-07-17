@@ -57,6 +57,7 @@ class StateEstimationDataGeneratorImpl(object):
                             # (obs, act, prev_act, pred)
                             self.file_markers.append((obs_f.tell(), act_f.tell(), prev_act_f.tell(), pred_f.tell()))
                             global_idx += 1
+        self.file_markers.pop()
         for i in range(len(self.file_markers)):
             self.cache_file_markers.append(self.file_markers[i])
 
@@ -164,12 +165,13 @@ class StateEstimationSensorArrayDataGeneratorImpl(StateEstimationDataGeneratorIm
                 elements.append(float(elem))
             except ValueError:
                 pass
-        seq_num = elements[0]
-        seq_size = elements[1]
         observations = list()
-        for h_idx in range(2, len(elements)):
-            observations.append(elements[h_idx])
-        observations = np.array(observations).reshape((int(seq_num), 2 * int(seq_size))).tolist()
+        if len(elements) > 2:
+            seq_num = elements[0]
+            seq_size = elements[1]
+            for h_idx in range(2, len(elements)):
+                observations.append(elements[h_idx])
+            observations = np.array(observations).reshape((int(seq_num), 2 * int(seq_size))).tolist()
         return observations
 
     def read_predictions(self, pred_str):

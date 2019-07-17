@@ -134,5 +134,5 @@ class WorldModel(object):
 
 
 if __name__ == "__main__":
-    model = WorldModel(prediction_horizon_size=10, validation=True)
+    model = WorldModel(prediction_horizon_size=10, validation=False)
     model.train_network(epochs=10000, batch_size=32)
