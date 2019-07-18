@@ -301,6 +301,10 @@ class StateEstimationDataGenerator(Sequence):
 
         return [observations, in_fovs, actions, prev_actions], p
 
+    def reset_file_markers(self):
+        for i in range(len(self.__impl__.cache_file_markers)):
+            self.__impl__.file_markers.append(self.__impl__.cache_file_markers[i])
+
     def on_epoch_end(self):
         self.__impl__.file_markers = list()
         for i in range(len(self.__impl__.cache_file_markers)):

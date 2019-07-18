@@ -28,6 +28,29 @@ class WorldModel(object):
         self.validation = validation
         self._build_architecture()
 
+    def create_model(self):
+        input_layer = Input(shape=self.input_shape)
+        fov_layer = Input(shape=self.fov_shape)
+        input_layer_ = Dense(10, activation="relu")(input_layer)
+        fov_layer_ = Dense(10, activation="softmax")(fov_layer)
+        action_layer = Input(shape=self.action_shape)
+        action_layer_ = Dense(10, activation="relu")(action_layer)
+        prev_action = Input(shape=(None, 1))
+        prev_action_ = Dense(10, activation="relu")(prev_action)
+        input_layer_ = Concatenate()([input_layer_, fov_layer_])
+        gru_input = Concatenate()([input_layer_, prev_action_])
+        gru = GRU(units=self.gru_layer_num_units)(gru_input)
+        mlp_outputs = list()
+        for idx in range(self.mlp_hidden_layer_size):
+            mlp_inputs = Lambda(lambda x: x[:, :idx + 1])(action_layer_)
+            mlp_in = Concatenate()([gru, mlp_inputs])
+            mlp = Dense(units=self.mlp_layer_num_units, activation="relu")(mlp_in)
+            mlp_output = Dense(units=self.mlp_output_layer_size, activation="relu")(mlp)
+            mlp_outputs.append(mlp_output)
+
+        self.model = Model([input_layer, fov_layer, action_layer, prev_action], mlp_outputs)
+        return self.model
+
     def _build_architecture(self):
         input_layer = Input(shape=self.input_shape)
         fov_layer = Input(shape=self.fov_shape)
@@ -55,7 +78,7 @@ class WorldModel(object):
         if self.print_summary:
             self.model.summary()
 
-        es = EarlyStopping(monitor="val_loss", mode="min", verbose=1, patience=50)
+        es = EarlyStopping(monitor="val_loss", mode="min", verbose=1, patience=1000)
         fp = self.state_estimation_data_path + "/" + "models" + "/weights.{epoch:02d}-{val_loss:.2f}.hdf5"
         mc = ModelCheckpoint(filepath=fp, save_best_only=True, monitor="val_loss", mode="min")
         rlr = ReduceLROnPlateau(monitor="val_loss", patience=50, factor=0.00001)
@@ -134,5 +157,5 @@ class WorldModel(object):
 
 
 if __name__ == "__main__":
-    model = WorldModel(prediction_horizon_size=10, validation=False)
+    model = WorldModel(prediction_horizon_size=10, validation=True)
     model.train_network(epochs=10000, batch_size=32)
