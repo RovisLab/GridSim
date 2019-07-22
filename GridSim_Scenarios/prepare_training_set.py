@@ -404,14 +404,14 @@ class SequenceProcessor(object):
 
 
 if __name__ == "__main__":
-    '''sp = SequenceProcessor(normalize=False,
+    sp = SequenceProcessor(normalize=False,
                            h_size=10,
                            preprocessor=sensor_array_fixed_sequence_preprocessing,
                            writer=writer_sensor_array,
-                           training_files=get_training_files_sensor_array)'''
-    sp = SequenceProcessor(normalize=True,
+                           training_files=get_training_files_sensor_array)
+    '''sp = SequenceProcessor(normalize=False,
                            h_size=10,
-                           preprocessor=preprocess_temp_file,
+                           preprocessor=variable_sequence_length_preprocessing,
                            writer=writer_simplified,
-                           training_files=get_training_files_simplified)
+                           training_files=get_training_files_simplified)'''
     sp.process_all_data()

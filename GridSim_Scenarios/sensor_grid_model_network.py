@@ -84,12 +84,12 @@ class WorldModel(object):
         if self.print_summary:
             self.model.summary()
 
-        '''es = EarlyStopping(monitor="val_loss", mode="min", verbose=1, patience=50)
+        es = EarlyStopping(monitor="val_loss", mode="min", verbose=1, patience=500)
         fp = self.state_estimation_data_path + "/" + "models" + "/weights.{epoch:02d}-{val_loss:.2f}.hdf5"
         mc = ModelCheckpoint(filepath=fp, save_best_only=True, monitor="val_loss", mode="min")
         rlr = ReduceLROnPlateau(monitor="val_loss", patience=50, factor=0.00001)
 
-        callbacks = [es, mc, rlr]'''
+        callbacks = [es, mc, rlr]
 
         generator = StateEstimationSensorArrayDataGenerator(input_file_path=self.state_estimation_data_path,
                                                             batch_size=batch_size,
@@ -104,12 +104,13 @@ class WorldModel(object):
             history = self.model.fit_generator(generator=generator,
                                                epochs=epochs,
                                                validation_data=val_generator,
-                                               verbose=2)
+                                               verbose=2,
+                                               callbacks=callbacks)
             '''
             ,callbacks=callbacks)
             '''
         else:
-            history = self.model.fit_generator(generator=generator, epochs=epochs, verbose=2)
+            history = self.model.fit_generator(generator=generator, epochs=epochs, verbose=2, callbacks=callbacks)
             '''
             , callbacks=callbacks)
             '''
@@ -155,5 +156,5 @@ class WorldModel(object):
 
 
 if __name__ == "__main__":
-    model = WorldModel(prediction_horizon_size=10, num_rays=50)
-    model.train_model(epochs=500, batch_size=32)
+    model = WorldModel(prediction_horizon_size=10, num_rays=50, validation=True)
+    model.train_model(epochs=1000, batch_size=32)

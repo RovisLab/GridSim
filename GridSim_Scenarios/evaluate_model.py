@@ -13,7 +13,7 @@ def calculate_statistics(results, ground_truth):
     for i in range(len(results)):
         for j in range(len(results[i])):
             if ground_truth[i][j] != 0:
-                percent_diff = (abs(results[i][j] - ground_truth[i][j]) / ground_truth[i][j]) * 100.0
+                percent_diff = (abs(results[i][j] - ground_truth[i][j]) / abs(ground_truth[i][j])) * 100.0
             else:
                 continue
             broke = False
@@ -30,7 +30,7 @@ def calculate_statistics(results, ground_truth):
     return percentile, accumulator
 
 
-def draw_graphic(percentile, accumulator):
+def draw_graphic(percentile, accumulator, base_path, graph_name):
     n_groups = len(percentile)
 
     fig, ax = plt.subplots()
@@ -48,16 +48,20 @@ def draw_graphic(percentile, accumulator):
                 rects.append(plt.bar(index + bar_width * j / 2, means, bar_width, alpha=opacity, color=colors[j],
                                      label="Frame_t+{0}".format(j + 1)))
 
-    plt.xlabel("Percentile")
+    plt.xlabel("Error [%]")
     plt.ylabel("Num Samples")
     plt.title("Errors Percentile")
-    plt.xticks(index + bar_width, (str(i) for i in percentile))
+    plt.xticks(index + bar_width, (str(i) if i != 100 else "{0}+".format(i) for i in percentile))
     plt.legend()
     plt.tight_layout()
-    plt.show()
+    plt.savefig(os.path.join(base_path, "perf", graph_name))
 
 
-def create_graphs(weights_path, base_path):
+def draw_per_sample_error(ground_truth, predictions):
+    pass
+
+
+def create_graphs(weights_path, base_path, graph_name):
     model = WorldModel(prediction_horizon_size=10, validation=True).create_model()
     model.load_weights(weights_path)
 
@@ -73,9 +77,9 @@ def create_graphs(weights_path, base_path):
     results = results.reshape((results.shape[0], -1))
 
     percentile, accumulator = calculate_statistics(results, ground_truth)
-    draw_graphic(percentile, accumulator)
+    draw_graphic(percentile, accumulator, base_path, graph_name)
 
 if __name__ == "__main__":
     bp = os.path.join(os.path.dirname(__file__), "resources", "traffic_cars_data", "state_estimation_data")
-    wp = os.path.join(bp, "models", "weights.441-0.83.hdf5")
-    create_graphs(weights_path=wp, base_path=bp)
+    wp = os.path.join(bp, "models", "weights.02-599.81.hdf5")
+    create_graphs(weights_path=wp, base_path=bp, graph_name="errors_02-599.81.png")
