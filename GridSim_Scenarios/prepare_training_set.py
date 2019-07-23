@@ -5,6 +5,41 @@ import math
 
 RAY_MAX_LEN = 150.0
 
+SENSOR_ARRAY_MIN_VAL = 0.0
+SENSOR_ARRAY_MAX_VAL = 150.0
+
+
+class ModelTypes(object):
+    SIMPLIFIED = 0
+    SENSOR_ARRAY = 1
+
+
+class PreprocessorTypes(object):
+    FIXED_LENGTH = 0
+    VARIABLE_LENGTH = 1
+    FULL_SEQUENCE = 2
+
+
+class DataPreprocessor(object):
+    def __init__(self, model_type, preprocessor_type, normalize):
+        self.model_type = model_type
+        self.preprocessor_type = preprocessor_type
+        if self.model_type == ModelTypes.SIMPLIFIED:
+            if self.preprocessor_type == PreprocessorTypes.FIXED_LENGTH:
+                self.preprocessor = preprocess_temp_file
+            else:
+                self.preprocessor = variable_sequence_length_preprocessing
+            self.writer = writer_simplified
+            self.training_files = get_training_files_simplified
+            if normalize is True:
+                self.normalizer = normalize_simplified
+        else:
+            self.preprocessor = sensor_array_fixed_sequence_preprocessing
+            self.writer = writer_sensor_array
+            self.training_files = get_training_files_sensor_array
+            if normalize is True:
+                self.normalizer = normalize_sensor_array
+
 
 def has_non_zero(arr):
     for delta, in_fov, action in arr:
@@ -87,13 +122,13 @@ def sensor_array_fixed_sequence_preprocessing(tmp_fp,
                 h_elems = list()
                 a_elems = list()
                 p_elems = list()
-                for front, rear, a in h:
-                    h_elems.append((front, rear))
+                for elem_idx in range(len(h)):
+                    h_elems.append((h[elem_idx][0][:], h[elem_idx][1][:]))
                 history.append(h_elems)
-                prev_actions.append(h_size * [h[-1][2]][0])
-                for front, rear, a in p:
-                    p_elems.append((front, rear))
-                    a_elems.append(a[0])
+                prev_actions.append(h_size * [h[-1][2][0]])
+                for elem_idx in range(len(p)):
+                    p_elems.append((p[elem_idx][0][:], p[elem_idx][1][:]))
+                    a_elems.append(p[elem_idx][2][0])
                 actions.append(a_elems)
                 predictions.append(p_elems)
         idx += 1
@@ -170,13 +205,13 @@ def preprocess_temp_file(tmp_fp, h_size, pred_size, min_seq_len, max_seq_len, fu
             a_elems = list()
             p_elems = list()
             if has_non_zero(predictions):
-                for delta, in_fov, _ in history:
-                    h_elems.append([delta, in_fov])
+                for idx in range(len(history)):
+                    h_elems.append([history[0], history[1]])
                 history_elements.append(h_elems)
                 previous_actions.append(h_size * [history[-1][2]])
-                for delta, _, action in predictions:
-                    a_elems.append(action)
-                    p_elems.append(delta)
+                for idx in range(len(predictions)):
+                    a_elems.append(predictions[idx][2])
+                    p_elems.append(predictions[idx][0])
                 actions_elements.append(a_elems)
                 prediction_elements.append(p_elems)
         elem_idx += 1
@@ -188,7 +223,7 @@ def get_min_max_obs():
 
 
 def get_min_max_actions():
-    return -25.0, 25.0
+    return 0.0, 25.0
 
 
 def get_min_max_predictions():
@@ -196,7 +231,7 @@ def get_min_max_predictions():
 
 
 def get_min_max_prev_actions():
-    return -25.0, 25.0
+    return 0.0, 25.0
 
 
 def __normalize(x, min_val, max_val):
@@ -234,6 +269,48 @@ def normalize_prev_actions(prev_actions):
         for idx2 in range(len(prev_actions[idx])):
             prev_actions[idx][idx2] = p_a_n
     return prev_actions
+
+
+def normalize_simplified(observations, prev_actions, actions, predictions):
+    return normalize_observations(observations), \
+           normalize_prev_actions(prev_actions), \
+           normalize_actions(actions), \
+           normalize_predictions(predictions)
+
+
+def normalize_sensor_array(observations, prev_actions, actions, predictions):
+    prev_actions = normalize_prev_actions(prev_actions)
+    actions = normalize_actions(actions)
+    observations = normalize_observations_sensor_array(observations)
+    predictions = normalize_predictions_sensor_array(predictions)
+
+    return observations, prev_actions, actions, predictions
+
+
+def normalize_observations_sensor_array(observations):
+    for idx in range(len(observations)):
+        for idx2 in range(len(observations[idx])):
+            for idx3 in range(len(observations[idx][idx2][0])):
+                observations[idx][idx2][0][idx3] = __normalize(observations[idx][idx2][0][idx3],
+                                                               SENSOR_ARRAY_MIN_VAL,
+                                                               SENSOR_ARRAY_MAX_VAL)
+                observations[idx][idx2][1][idx3] = __normalize(observations[idx][idx2][1][idx3],
+                                                               SENSOR_ARRAY_MIN_VAL,
+                                                               SENSOR_ARRAY_MAX_VAL)
+    return observations
+
+
+def normalize_predictions_sensor_array(predictions):
+    for idx in range(len(predictions)):
+        for idx2 in range(len(predictions[idx])):
+            for idx3 in range(len(predictions[idx][idx2][0])):
+                predictions[idx][idx2][0][idx3] = __normalize(predictions[idx][idx2][0][idx3],
+                                                              SENSOR_ARRAY_MIN_VAL,
+                                                              SENSOR_ARRAY_MAX_VAL)
+                predictions[idx][idx2][1][idx3] = __normalize(predictions[idx][idx2][1][idx3],
+                                                              SENSOR_ARRAY_MIN_VAL,
+                                                              SENSOR_ARRAY_MAX_VAL)
+    return predictions
 
 
 def writer_sensor_array(base_path, history, prev_act, actions, predictions, val=False):
@@ -332,6 +409,7 @@ def get_training_files_sensor_array(base_path):
 
 class SequenceProcessor(object):
     def __init__(self,
+                 data_processor,
                  base_path=os.path.join(os.path.dirname(__file__),
                                         "resources",
                                         "traffic_cars_data",
@@ -342,10 +420,8 @@ class SequenceProcessor(object):
                  max_seq=100,
                  full_seq=False,
                  constant_seq=True,
-                 normalize=False,
-                 preprocessor=preprocess_temp_file,
-                 writer=writer_simplified,
-                 training_files=get_training_files_simplified):
+                 normalize=False):
+        self.data_processor = data_processor
         self.base_path = base_path
         self.h_size = h_size
         self.pred_size = pred_size
@@ -354,16 +430,15 @@ class SequenceProcessor(object):
         self.full_seq = full_seq
         self.constant_seq = constant_seq
         self.normalize = normalize
-        self.preprocessor = preprocessor
-        self.writer = writer
-        self.training_files = training_files
+        self.preprocessor = self.data_processor.preprocessor
+        self.writer = self.data_processor.writer
+        self.training_files = self.data_processor.training_files
+        self.normalizer = self.data_processor.normalizer
         self.validation = False
 
     def __normalize(self, history, prev_actions, actions, predictions):
-        return normalize_observations(history), \
-               normalize_prev_actions(prev_actions), \
-               normalize_actions(actions), \
-               normalize_predictions(predictions)
+        return self.normalizer(observations=history, prev_actions=prev_actions,
+                               actions=actions, predictions=predictions)
 
     def _create_validation_data(self, val_data_fn):
         history, prev_actions, actions, predictions = self.preprocessor(val_data_fn,
@@ -373,10 +448,10 @@ class SequenceProcessor(object):
                                                                         self.max_seq,
                                                                         self.full_seq)
         if self.normalize:
-            history, prev_actions, actions, predictions = self.__normalize(history,
-                                                                           prev_actions,
-                                                                           actions,
-                                                                           predictions)
+            history, prev_actions, actions, predictions = self.__normalize(history=history,
+                                                                           prev_actions=prev_actions,
+                                                                           actions=actions,
+                                                                           predictions=predictions)
         self.writer(self.base_path, history, prev_actions, actions, predictions, True)
 
     def process_all_data(self):
@@ -392,10 +467,10 @@ class SequenceProcessor(object):
                                                                             self.max_seq,
                                                                             self.full_seq)
             if self.normalize:
-                history, prev_actions, actions, predictions = self.__normalize(history,
-                                                                               prev_actions,
-                                                                               actions,
-                                                                               predictions)
+                history, prev_actions, actions, predictions = self.__normalize(history=history,
+                                                                               prev_actions=prev_actions,
+                                                                               actions=actions,
+                                                                               predictions=predictions)
             self.writer(self.base_path, history, prev_actions, actions, predictions)
 
         if self.validation:
@@ -404,14 +479,11 @@ class SequenceProcessor(object):
 
 
 if __name__ == "__main__":
-    sp = SequenceProcessor(normalize=False,
-                           h_size=10,
-                           preprocessor=sensor_array_fixed_sequence_preprocessing,
-                           writer=writer_sensor_array,
-                           training_files=get_training_files_sensor_array)
-    '''sp = SequenceProcessor(normalize=False,
-                           h_size=10,
-                           preprocessor=variable_sequence_length_preprocessing,
-                           writer=writer_simplified,
-                           training_files=get_training_files_simplified)'''
+    m_type = ModelTypes.SENSOR_ARRAY
+    p_type = PreprocessorTypes.FIXED_LENGTH
+    norm = True
+    dp = DataPreprocessor(model_type=m_type, preprocessor_type=p_type, normalize=norm)
+    sp = SequenceProcessor(data_processor=dp,
+                           normalize=norm,
+                           h_size=10)
     sp.process_all_data()

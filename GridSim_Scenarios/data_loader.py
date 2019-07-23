@@ -239,10 +239,10 @@ class StateEstimationSensorArrayDataGenerator(Sequence):
         for idx in range(len(prev_actions)):
             for idx2 in range(len(prev_actions[idx])):
                 prev_actions[idx][idx2] = [prev_actions[idx][idx2]]
-        observations = pad_sequences(observations)
+        observations = np.array(observations)
         actions = np.array(actions)
         #prev_actions = np.array(prev_actions)
-        prev_actions = pad_sequences(prev_actions)
+        prev_actions = np.array(prev_actions)
 
         p = list()
         if len(predictions):

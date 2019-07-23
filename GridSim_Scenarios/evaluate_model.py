@@ -159,5 +159,5 @@ def create_graphs_simplified(weights_path, base_path, graph_name):
 
 if __name__ == "__main__":
     bp = os.path.join(os.path.dirname(__file__), "resources", "traffic_cars_data", "state_estimation_data")
-    wp = os.path.join(bp, "models", "weights.998-63356.08.hdf5")
-    create_graphs_sensor_array(weights_path=wp, base_path=bp, graph_name="statistics_998-63356.08")
+    wp = os.path.join(bp, "models", "weights.66-3.60.hdf5")
+    create_graphs_sensor_array(weights_path=wp, base_path=bp, graph_name="statistics_66-3.60")
