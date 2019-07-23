@@ -1,5 +1,6 @@
 import os
-from keras.models import Model, load_model
+import numpy as np
+from keras.models import Model, load_model, model_from_json
 from keras.layers import Input, Dense, GRU, Concatenate, Lambda, BatchNormalization, Reshape, Flatten, Masking
 from keras.optimizers import Adam, SGD
 from keras.utils import plot_model
@@ -27,29 +28,6 @@ class WorldModel(object):
         self.draw_statistics = True
         self.validation = validation
         self._build_architecture()
-
-    def create_model(self):
-        input_layer = Input(shape=self.input_shape)
-        fov_layer = Input(shape=self.fov_shape)
-        input_layer_ = Dense(10, activation="relu")(input_layer)
-        fov_layer_ = Dense(10, activation="softmax")(fov_layer)
-        action_layer = Input(shape=self.action_shape)
-        action_layer_ = Dense(10, activation="relu")(action_layer)
-        prev_action = Input(shape=(None, 1))
-        prev_action_ = Dense(10, activation="relu")(prev_action)
-        input_layer_ = Concatenate()([input_layer_, fov_layer_])
-        gru_input = Concatenate()([input_layer_, prev_action_])
-        gru = GRU(units=self.gru_layer_num_units)(gru_input)
-        mlp_outputs = list()
-        for idx in range(self.mlp_hidden_layer_size):
-            mlp_inputs = Lambda(lambda x: x[:, :idx + 1])(action_layer_)
-            mlp_in = Concatenate()([gru, mlp_inputs])
-            mlp = Dense(units=self.mlp_layer_num_units, activation="relu")(mlp_in)
-            mlp_output = Dense(units=self.mlp_output_layer_size, activation="relu")(mlp)
-            mlp_outputs.append(mlp_output)
-
-        self.model = Model([input_layer, fov_layer, action_layer, prev_action], mlp_outputs)
-        return self.model
 
     def _build_architecture(self):
         input_layer = Input(shape=self.input_shape)
@@ -149,11 +127,17 @@ class WorldModel(object):
     def predict(self, data_frame):
         return self.model.predict(x=data_frame)
 
-    def save_model(self, model_path):
-        return self.model.save(model_path)
+    def save_model(self):
+        dest_path = os.path.join(self.state_estimation_data_path, "models", "model.json")
+        model_json = self.model.to_json()
+        with open(dest_path, "w") as json_file:
+            json_file.write(model_json)
 
-    def load_model(self, model_path):
-        self.model = load_model(model_path)
+    def predict_generator(self, generator):
+        return np.array(self.model.predict_generator(generator, verbose=1))
+
+    def load_weights(self, weights_path):
+        return self.model.load_weights(weights_path)
 
 
 if __name__ == "__main__":

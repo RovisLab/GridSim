@@ -1,6 +1,7 @@
 import os
+import numpy as np
 from keras.layers import Conv2D, Dense, GRU, Concatenate, Lambda, Masking, Input, Reshape, Flatten, Conv1D
-from keras.models import Model
+from keras.models import Model, model_from_json
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from keras.utils import plot_model
@@ -80,11 +81,17 @@ class WorldModel(object):
         self.model = Model([input_layer, action_layer, prev_action_layer], mlp_outputs)
         self.model.compile(optimizer=Adam(lr=0.00005), loss="mean_squared_error", metrics=["mae", "accuracy"])
 
+    def save_model(self):
+        dest_path = os.path.join(self.state_estimation_data_path, "models", "model.json")
+        model_json = self.model.to_json()
+        with open(dest_path, "w") as json_file:
+            json_file.write(model_json)
+
     def train_model(self, epochs=100, batch_size=32):
         if self.print_summary:
             self.model.summary()
 
-        es = EarlyStopping(monitor="val_loss", mode="min", verbose=1, patience=500)
+        es = EarlyStopping(monitor="val_loss", mode="min", verbose=1, patience=100)
         fp = self.state_estimation_data_path + "/" + "models" + "/weights.{epoch:02d}-{val_loss:.2f}.hdf5"
         mc = ModelCheckpoint(filepath=fp, save_best_only=True, monitor="val_loss", mode="min")
         rlr = ReduceLROnPlateau(monitor="val_loss", patience=50, factor=0.00001)
@@ -153,6 +160,12 @@ class WorldModel(object):
                     plt.legend(["Train Loss"], loc="upper left")
                 plt.savefig(os.path.join(self.state_estimation_data_path, "perf", "loss_{0}.png".format(out)))
                 plt.clf()
+
+    def predict_generator(self, generator):
+        return np.array(self.model.predict_generator(generator, verbose=1))
+
+    def load_weights(self, weights_path):
+        return self.model.load_weights(weights_path)
 
 
 if __name__ == "__main__":

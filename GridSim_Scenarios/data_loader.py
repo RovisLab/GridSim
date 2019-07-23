@@ -260,6 +260,10 @@ class StateEstimationSensorArrayDataGenerator(Sequence):
         if self.__impl__.shuffle is True:
             random.shuffle(self.__impl__.file_markers)
 
+    def reset_file_markers(self):
+        for i in range(len(self.__impl__.cache_file_markers)):
+            self.__impl__.file_markers.append(self.__impl__.cache_file_markers[i])
+
 
 class StateEstimationDataGenerator(Sequence):
     def __init__(self, input_file_path, batch_size, prediction_horizon_size, shuffle=True, validation=False):
