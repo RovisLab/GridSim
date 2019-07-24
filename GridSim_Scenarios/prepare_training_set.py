@@ -206,7 +206,7 @@ def preprocess_temp_file(tmp_fp, h_size, pred_size, min_seq_len, max_seq_len, fu
             p_elems = list()
             if has_non_zero(predictions):
                 for idx in range(len(history)):
-                    h_elems.append([history[0], history[1]])
+                    h_elems.append([history[idx][0], history[idx][1]])
                 history_elements.append(h_elems)
                 previous_actions.append(h_size * [history[-1][2]])
                 for idx in range(len(predictions)):
@@ -433,7 +433,8 @@ class SequenceProcessor(object):
         self.preprocessor = self.data_processor.preprocessor
         self.writer = self.data_processor.writer
         self.training_files = self.data_processor.training_files
-        self.normalizer = self.data_processor.normalizer
+        if self.normalize is True:
+            self.normalizer = self.data_processor.normalizer
         self.validation = False
 
     def __normalize(self, history, prev_actions, actions, predictions):
@@ -481,7 +482,7 @@ class SequenceProcessor(object):
 if __name__ == "__main__":
     m_type = ModelTypes.SENSOR_ARRAY
     p_type = PreprocessorTypes.FIXED_LENGTH
-    norm = True
+    norm = False
     dp = DataPreprocessor(model_type=m_type, preprocessor_type=p_type, normalize=norm)
     sp = SequenceProcessor(data_processor=dp,
                            normalize=norm,

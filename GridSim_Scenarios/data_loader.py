@@ -3,6 +3,7 @@ from keras.preprocessing.sequence import pad_sequences
 import os
 import numpy as np
 import random
+import cv2
 
 
 class StateEstimationDataGeneratorImpl(object):
@@ -315,3 +316,37 @@ class StateEstimationDataGenerator(Sequence):
             self.__impl__.file_markers.append(self.__impl__.cache_file_markers[i])
         if self.__impl__.shuffle is True:
             random.shuffle(self.__impl__.file_markers)
+
+
+class StateEstimationModelCar(Sequence):
+    """
+    rovis_data_descriptor_file:
+    timestamp, delta_ts, path2image_rgb (e.g 1234, 12, ./samples/1234RGB.png)
+    timestamp, delta_ts, path2image_d
+    ...
+
+    sensor_data_descriptor_file:
+    timestamp, velocity, steering_angle, x, y, pitch, us_fl, us_fcl, us_fc, us_fcr, us_fr
+    ...
+    """
+    def __init__(self, input_file_path, batch_size, prediction_horizon_size, shuffle=True, validation=False):
+        self.input_file_path = input_file_path
+        self.batch_size = batch_size
+        self.prediction_horizon_size = prediction_horizon_size
+        self.shuffle = shuffle
+        self.validation = validation
+
+    def parse_rovis_descriptor_file(self):
+        pass
+
+    def get_batch(self):
+        pass
+
+    def __getitem__(self, item):
+        pass
+
+    def __len__(self):
+        pass
+
+    def on_epoch_end(self):
+        pass

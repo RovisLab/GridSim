@@ -32,7 +32,7 @@ class WorldModel(object):
     def _build_architecture(self):
         input_layer = Input(shape=self.input_shape)
         fov_layer = Input(shape=self.fov_shape)
-        input_layer_ = Dense(10, activation="sigmoid")(input_layer)
+        input_layer_ = Dense(10, activation="relu")(input_layer)
         fov_layer_ = Dense(10, activation="softmax")(fov_layer)
         action_layer = Input(shape=self.action_shape)
         action_layer_ = Dense(10, activation="relu")(action_layer)
@@ -56,7 +56,7 @@ class WorldModel(object):
         if self.print_summary:
             self.model.summary()
 
-        es = EarlyStopping(monitor="val_loss", mode="min", verbose=1, patience=1000)
+        es = EarlyStopping(monitor="val_loss", mode="min", verbose=1, patience=100)
         fp = self.state_estimation_data_path + "/" + "models" + "/weights.{epoch:02d}-{val_loss:.2f}.hdf5"
         mc = ModelCheckpoint(filepath=fp, save_best_only=True, monitor="val_loss", mode="min")
         rlr = ReduceLROnPlateau(monitor="val_loss", patience=50, factor=0.00001)

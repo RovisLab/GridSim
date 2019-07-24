@@ -80,20 +80,30 @@ def draw_graphic(percentile, accumulator, base_path, graph_name):
     plt.clf()
 
 
+def calculate_array_diff(gt, pred):
+    diff = abs(gt - pred)
+    return np.mean(diff)
+
+
 def draw_per_sample_error_sensor_array(ground_truth, predictions, base_path, graph_name):
     means_gt, means_p = list(), list()
+    diff = list()
     for g_t, p in zip(ground_truth, predictions):
         m_g_t = list()
         m_p = list()
+        d = list()
         for sample_num_g_t, sample_num_p in zip(g_t, p):
             m_g_t.append(np.mean(sample_num_g_t))
             m_p.append(np.mean(sample_num_p))
+            d.append(calculate_array_diff(sample_num_g_t, sample_num_p))
         means_gt.append(m_g_t)
         means_p.append(m_p)
+        diff.append(d)
     ox = np.arange(len(means_gt[0]))
     for idx in range(len(means_gt)):
         plt.plot(ox, means_gt[idx], label="Ground Truth")
         plt.plot(ox, means_p[idx], label="Predicted")
+        plt.plot(ox, diff[idx], label="Error")
         plt.legend()
         plt.savefig(os.path.join(base_path, "perf", "{0}_frame_{1}.png".format(graph_name, idx + 1)))
         plt.clf()
@@ -159,5 +169,5 @@ def create_graphs_simplified(weights_path, base_path, graph_name):
 
 if __name__ == "__main__":
     bp = os.path.join(os.path.dirname(__file__), "resources", "traffic_cars_data", "state_estimation_data")
-    wp = os.path.join(bp, "models", "weights.66-3.60.hdf5")
-    create_graphs_sensor_array(weights_path=wp, base_path=bp, graph_name="statistics_66-3.60")
+    wp = os.path.join(bp, "models", "weights.998-63356.08.hdf5")
+    create_graphs_sensor_array(weights_path=wp, base_path=bp, graph_name="statistics_998-63356.08")
