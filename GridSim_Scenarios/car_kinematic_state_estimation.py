@@ -38,7 +38,7 @@ class StateEstimatorKinematicModel(Simulator):
                                                                                        "resources",
                                                                                        "traffic_cars_data",
                                                                                        "state_estimation_data"),
-                                                           sensors=True, distance_sensor=False, enabled_menu=False,
+                                                           sensors=False, distance_sensor=True, enabled_menu=False,
                                                            object_map_path=object_map_path,
                                                            background_path=background_path,
                                                            car_image_path=car_image_path,
@@ -177,10 +177,12 @@ class StateEstimatorKinematicModel(Simulator):
     def _write_data(self):
         if os.path.exists(self.state_buf_path) and os.path.isdir(self.state_buf_path):
             with open(os.path.join(self.state_buf_path, "tmp.npy"), "a") as tmp_f:
-                tmp_f.write("{0},{1},{2}\n".format(self.car.position.y - self.highway_traffic[0].position.y
-                                                   if self._object_in_sensor_fov() else 0.0,
-                                                   1.0 if self._object_in_sensor_fov() else 0.0,
-                                                   self.car.velocity.x))
+                '''actual_delta, perceived_delta, in_fov, velocity'''
+                delta = abs(self.car.position.y - self.highway_traffic[0].position.y)
+                tmp_f.write("{0},{1},{2},{3}\n".format(delta,
+                                                       delta if self._object_in_sensor_fov() else 0.0,
+                                                       1.0 if self._object_in_sensor_fov() else 0.0,
+                                                       self.car.velocity.x))
 
     def _write_sensor_array_data(self):
         if os.path.exists(self.state_buf_path) and os.path.isdir(self.state_buf_path):
@@ -284,5 +286,5 @@ if __name__ == "__main__":
                                         screen_height=h, num_cars=1,
                                         max_veh_vel=20, base_velocity=10,
                                         scenario=GridSimScenario.USER_CONTROL_SINE,
-                                        mode=TrainingDataType.SENSOR_RAYS)
+                                        mode=TrainingDataType.SIMPLIFIED)
     game.run()

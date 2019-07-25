@@ -331,13 +331,74 @@ class StateEstimationModelCar(Sequence):
     """
     def __init__(self, input_file_path, batch_size, prediction_horizon_size, shuffle=True, validation=False):
         self.input_file_path = input_file_path
+        self.rovis_desc_file = os.path.join(self.input_file_path, "desc_file.csv")
+        self.sensor_desc_file = os.path.join(self.input_file_path, "sensor_desc.csv")
         self.batch_size = batch_size
         self.prediction_horizon_size = prediction_horizon_size
         self.shuffle = shuffle
         self.validation = validation
+        self.file_markers = list()
+        self.cache_file_markers = list()
+        self.__get_file_markers()
 
-    def parse_rovis_descriptor_file(self):
-        pass
+    def __get_file_markers(self):
+        with open(self.rovis_desc_file, "r") as rovis_desc:
+            with open(self.sensor_desc_file, "r") as sensor_desc:
+                data_size = len(self)
+                idx = 0
+                while idx < data_size:
+                    batch_idx = 0
+                    while batch_idx < self.batch_size:
+                        # Read first line (RGB image)
+                        rovis_desc.readline()
+                        # Read second line (D image)
+                        rovis_desc.readline()
+
+                        # Read line from sensor descriptor file
+                        sensor_desc.readline()
+                        batch_idx += 1
+                    self.file_markers.append((rovis_desc.tell(), sensor_desc.tell()))
+                    idx += 1
+                self.file_markers.pop()
+                for idx in range(len(self.file_markers)):
+                    self.cache_file_markers.append(self.file_markers[idx])
+
+    def get_rovis_image_path(self, line):
+        ts, d_ts, path2img = line.split(",")
+        return path2img
+
+    def get_image(self, image_path):
+        img_path = os.path.join(self.input_file_path, image_path)
+        return cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
+
+    def get_sensor_data(self, line):
+        ts, v, stering_angle, x, y, pitch, us_fl, us_fcl, us_fc, us_fcr, us_fr = line.split(",")
+        return (float(v), float(stering_angle), float(x), float(y), float(pitch), float(us_fl),
+                float(us_fcl), float(us_fc), float(us_fcr), float(us_fr))
+
+    def get_sequence(self, offset_rovis_desc, offset_sensor_desc, seq_len):
+        with open(self.rovis_desc_file, "r") as rovis_desc:
+            with open(self.sensor_desc_file, "r") as sensor_desc:
+                rovis_desc.seek(offset_rovis_desc)
+                sensor_desc.seek(offset_sensor_desc)
+                idx = 0
+                data = list()
+                while idx < seq_len:
+                    rgb_img = self.get_image(self.get_rovis_image_path(rovis_desc.readline()))
+                    d_img = self.get_image(self.get_rovis_image_path(rovis_desc.readline()))
+                    sensor_data = self.get_sensor_data(sensor_desc.readline())
+                    data.append((rgb_img, d_img, sensor_data))
+                    idx += 1
+        return data
+
+    def _seek_to_line(self, line_num, fp):
+        #  start counting from 1
+        with open(fp, "r") as file:
+            line_idx = 0
+            while line_idx < line_num:
+                file.readline()
+                line_idx += 1
+        return file.tell()
 
     def get_batch(self):
         pass

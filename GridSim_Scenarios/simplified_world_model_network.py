@@ -142,4 +142,4 @@ class WorldModel(object):
 
 if __name__ == "__main__":
     model = WorldModel(prediction_horizon_size=10, validation=True)
-    model.train_network(epochs=10000, batch_size=32)
+    model.train_network(epochs=2000, batch_size=10)
