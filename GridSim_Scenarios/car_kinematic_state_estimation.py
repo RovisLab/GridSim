@@ -178,7 +178,7 @@ class StateEstimatorKinematicModel(Simulator):
         if os.path.exists(self.state_buf_path) and os.path.isdir(self.state_buf_path):
             with open(os.path.join(self.state_buf_path, "tmp.npy"), "a") as tmp_f:
                 '''actual_delta, perceived_delta, in_fov, velocity'''
-                delta = abs(self.car.position.y - self.highway_traffic[0].position.y)
+                delta = self.car.position.y - self.highway_traffic[0].position.y
                 tmp_f.write("{0},{1},{2},{3}\n".format(delta,
                                                        delta if self._object_in_sensor_fov() else 0.0,
                                                        1.0 if self._object_in_sensor_fov() else 0.0,
