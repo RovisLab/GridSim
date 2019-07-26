@@ -1,5 +1,4 @@
 import os
-import numpy as np
 
 
 def get_elements_from_gridsim_record_file(tmp_fp):
@@ -97,17 +96,25 @@ class SimplifiedWorldModelTrainingSet(object):
     def process_all_data(self):
         files = os.listdir(self.base_path)
         training_files = [os.path.join(self.base_path, f) for f in files if "tmp" in f and "npy" in f]
+        t_files = list()
         val_files = list()
         for f in training_files:
             if "_val" in f:
                 val_files.append(f)
-                training_files.remove(f)
+            else:
+                t_files.append(f)
 
-        for f in training_files:
+        for f in t_files:
             self.process_training_file(training_fp=f, h_size=self.h_size, pred_size=self.pred_size, val=False)
 
         for f in val_files:
             self.process_training_file(training_fp=f, h_size=self.h_size, pred_size=self.pred_size, val=True)
+
+    def get_all_output_files(self):
+        fl = ["actions.npy", "observations.npy", "predictions.npy", "prev_actions.npy",
+              "actions_val.npy", "observations_val.npy", "predictions_val.npy", "prev_actions_val.npy"]
+
+        return [os.path.join(self.base_path, f) for f in fl if os.path.exists(os.path.join(self.base_path, f))]
 
 
 if __name__ == "__main__":

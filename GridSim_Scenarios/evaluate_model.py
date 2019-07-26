@@ -1,4 +1,5 @@
 import os
+import shutil
 from keras.models import load_model
 import numpy as np
 import matplotlib
@@ -114,6 +115,7 @@ def draw_per_sample_error_simplified(ground_truth, predictions, base_path, graph
     for idx in range(len(ground_truth)):
         plt.plot(ox, ground_truth[idx], label="Ground Truth")
         plt.plot(ox, predictions[idx], label="Predicted")
+        plt.plot(ox, abs(predictions[idx] - ground_truth[idx]), label="Error")
         plt.legend()
         plt.savefig(os.path.join(base_path, "perf", "{0}_frame_{1}.png".format(graph_name, idx + 1)))
         plt.clf()
@@ -167,7 +169,55 @@ def create_graphs_simplified(weights_path, base_path, graph_name):
     model.save_model()
 
 
+def find_best_model_weights(model_path):
+    files = os.listdir(model_path)
+    weigths_files = [f for f in files if "weights" in f and "hdf5" in f]
+    min_loss = 10000.0
+    loss = 10000.0
+    best_model = os.path.join(model_path, weigths_files[0])
+    for weight in weigths_files:
+        w = os.path.splitext(weight)[0]
+        loss_val = float(w.split("-")[1])
+        if loss_val < min_loss:
+            best_model = os.path.join(model_path, weight)
+            loss = loss_val
+    return best_model, loss
+
+
+def switch_sign(in_fp, out_fp):
+    with open(in_fp, "r") as in_f:
+        with open(out_fp, "w") as out_f:
+            while True:
+                line = in_f.readline()
+                if len(line) == 0:
+                    break
+                actual_delta, perceived_delta, in_fov, vel = line.split(",")
+                actual_delta = float(actual_delta)
+                perceived_delta = float(perceived_delta)
+                in_fov = float(in_fov)
+                vel = float(vel)
+                actual_delta = - actual_delta
+                perceived_delta = - perceived_delta
+                out_f.write("{0},{1},{2},{3}".format(actual_delta, perceived_delta, in_fov, vel))
+                out_f.write("\n")
+
+
+def convert_sign(base_path):
+    old_files = os.listdir(base_path)
+    old_files = [os.path.join(base_path, f) for f in old_files]
+    bk_files = [f + ".bk" for f in old_files]
+    for f in old_files:
+        bk_name = f + ".bk"
+        shutil.move(f, bk_name)
+    for bk, converted in zip(bk_files, old_files):
+        switch_sign(bk, converted)
+
+    for bk in bk_files:
+        os.remove(bk)
+
+
 if __name__ == "__main__":
+    # convert_sign("d:\\dev\\gridsim_state_estimation_data\\test\\training_set")
     bp = os.path.join(os.path.dirname(__file__), "resources", "traffic_cars_data", "state_estimation_data")
     wp = os.path.join(bp, "models", "weights.892-10.30.hdf5")
     create_graphs_simplified(weights_path=wp, base_path=bp, graph_name="statistics_892-10.30")
