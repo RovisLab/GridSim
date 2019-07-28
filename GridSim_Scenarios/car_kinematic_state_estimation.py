@@ -281,5 +281,5 @@ if __name__ == "__main__":
                                         screen_height=h, num_cars=1,
                                         max_veh_vel=20, base_velocity=10,
                                         scenario=GridSimScenario.USER_CONTROL_SINE,
-                                        mode=TrainingDataType.SIMPLIFIED)
+                                        mode=TrainingDataType.SENSOR_RAYS)
     game.run()
