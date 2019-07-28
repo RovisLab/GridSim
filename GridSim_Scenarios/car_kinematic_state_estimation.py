@@ -79,8 +79,6 @@ class StateEstimatorKinematicModel(Simulator):
                     idx += 1
                 os.rename(os.path.join(self.state_buf_path, "front_sensor_distances.npy"),
                           os.path.join(self.state_buf_path, "front_sensor_distances_{0}.npy".format(idx)))
-                os.rename(os.path.join(self.state_buf_path, "rear_sensor_distances.npy"),
-                          os.path.join(self.state_buf_path, "rear_sensor_distances_{0}.npy".format(idx)))
                 os.rename(os.path.join(self.state_buf_path, "velocity.npy"),
                           os.path.join(self.state_buf_path, "velocity_{0}.npy".format(idx)))
 
@@ -185,15 +183,12 @@ class StateEstimatorKinematicModel(Simulator):
                                                        self.car.velocity.x))
 
     def _write_sensor_array_data(self):
+        front_array = self.access_simulator_data(distance_sensor_data=True)
         if os.path.exists(self.state_buf_path) and os.path.isdir(self.state_buf_path):
             with open(os.path.join(self.state_buf_path, "front_sensor_distances.npy"), "a") as tmp_ff:
-                with open(os.path.join(self.state_buf_path, "rear_sensor_distances.npy"), "a") as tmp_fr:
-                    for x in self.front_sensor_distances:
+                    for x in front_array:
                         tmp_ff.write("{0},".format(x))
-                    for x in self.rear_sensor_distances:
-                        tmp_fr.write("{0},".format(x))
                     tmp_ff.write("\n")
-                    tmp_fr.write("\n")
             with open(os.path.join(self.state_buf_path, "velocity.npy"), "a") as vel_f:
                 vel_f.write("{0}\n".format(self.car.velocity.x))
 
