@@ -29,7 +29,7 @@ class WorldModel(object):
         self.mlp_hidden_layer_size = prediction_horizon_size
         self.mlp_output_layer_units = num_rays
         self.model = None
-        self.draw_statistics = False
+        self.draw_statistics = True
         self.print_summary = True
         self._build_architecture()
 
@@ -60,8 +60,6 @@ class WorldModel(object):
         conv_layer2 = Conv1D(filters=16, kernel_size=3, strides=2, padding="same")(conv_layer1)
         conv_fc = Dense(units=256, activation="relu")(conv_layer2)
         print("ConvNet shape = {0}".format(conv_fc.shape))
-        #conv_fc = Reshape(target_shape=(-1, int(conv_fc.shape[2]) * int(conv_fc.shape[3])))(conv_fc)
-        #print("Reshaped conv shape = {0}".format(conv_fc.shape))
         action_layer = Input(shape=self.action_shape)
         prev_action_layer = Input(shape=self.prev_action_shape)
         print("prev_act shape = {0}".format(prev_action_layer.shape))
@@ -98,7 +96,7 @@ class WorldModel(object):
 
         es = EarlyStopping(monitor=metric, mode="min", verbose=1, patience=100)
         fp = self.state_estimation_data_path + "/" + "models" + \
-             "/weights.{epoch:02d}-{" + "{0}".format(metric) + ":.2f}.hdf5"
+             "/weights.{epoch:04d}-{" + "{0}".format(metric) + ":.6f}.hdf5"
         mc = ModelCheckpoint(filepath=fp, save_best_only=True, monitor=metric, mode="min")
         rlr = ReduceLROnPlateau(monitor=metric, patience=50, factor=0.00001)
 
@@ -119,19 +117,13 @@ class WorldModel(object):
                                                validation_data=val_generator,
                                                verbose=2,
                                                callbacks=callbacks)
-            '''
-            ,callbacks=callbacks)
-            '''
         else:
             history = self.model.fit_generator(generator=generator, epochs=epochs, verbose=2, callbacks=callbacks)
-            '''
-            , callbacks=callbacks)
-            '''
         if self.draw_statistics is True:
             plot_model(self.model, to_file=os.path.join(self.state_estimation_data_path, "perf", "model.png"))
 
-            outputs = ["dense_6", "dense_8", "dense_10", "dense_12", "dense_14",
-                       "dense_16", "dense_18", "dense_20", "dense_22", "dense_24"]
+            outputs = ["dense_5", "dense_7", "dense_9", "dense_11", "dense_13",
+                       "dense_15", "dense_17", "dense_19", "dense_21", "dense_23"]
 
             loss_outputs = [x + "_loss" for x in outputs]
             loss_val_outputs = ["val_" + x + "_loss" for x in outputs]

@@ -4,7 +4,8 @@ from keras.models import load_model
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-from data_loader import StateEstimationDataGenerator, StateEstimationSensorArrayDataGenerator
+from data_loader import StateEstimationDataGenerator
+from sensor_array_data_loader import StateEstimationSensorArrayDataGenerator
 from sensor_grid_model_network import WorldModel
 from simplified_world_model_network import WorldModel as SimplifiedWorldModel
 
@@ -121,8 +122,8 @@ def draw_per_sample_error_simplified(ground_truth, predictions, base_path, graph
         plt.clf()
 
 
-def create_graphs_sensor_array(weights_path, base_path, graph_name):
-    model = WorldModel(prediction_horizon_size=10, validation=True, num_rays=50)
+def create_graphs_sensor_array(weights_path, base_path, graph_name, num_rays):
+    model = WorldModel(prediction_horizon_size=10, validation=True, num_rays=num_rays)
     model.load_weights(weights_path)
 
     test_generator = StateEstimationSensorArrayDataGenerator(input_file_path=base_path, batch_size=1,
@@ -172,8 +173,8 @@ def create_graphs_simplified(weights_path, base_path, graph_name):
 def find_best_model_weights(model_path):
     files = os.listdir(model_path)
     weigths_files = [f for f in files if "weights" in f and "hdf5" in f]
-    min_loss = 10000.0
-    loss = 10000.0
+    min_loss = 1000000.0
+    loss = 1000000.0
     best_model = os.path.join(model_path, weigths_files[0])
     for weight in weigths_files:
         w = os.path.splitext(weight)[0]
