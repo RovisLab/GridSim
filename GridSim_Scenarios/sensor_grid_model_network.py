@@ -6,7 +6,7 @@ from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from keras.utils import plot_model
 import matplotlib.pyplot as plt
-from data_loader import StateEstimationSensorArrayDataGenerator
+from sensor_array_data_loader import StateEstimationSensorArrayDataGenerator
 
 
 class WorldModel(object):
@@ -20,14 +20,14 @@ class WorldModel(object):
                                                        "state_estimation_data")
         self.prediction_horizon_size = prediction_horizon_size
         self.validation = validation
-        self.input_shape = (None, 2 * num_rays,)
+        self.input_shape = (None, num_rays)
         self.action_shape = (self.prediction_horizon_size,)
-        self.prev_action_shape = (None, 1,)
+        self.prev_action_shape = (None, 1)
         self.gru_num_units = 128
         self.mlp_layer_num_units = 10
         self.gru_layer_num_units = 32
         self.mlp_hidden_layer_size = prediction_horizon_size
-        self.mlp_output_layer_units = 2 * num_rays
+        self.mlp_output_layer_units = num_rays
         self.model = None
         self.draw_statistics = False
         self.print_summary = True
@@ -91,10 +91,16 @@ class WorldModel(object):
         if self.print_summary:
             self.model.summary()
 
-        es = EarlyStopping(monitor="val_loss", mode="min", verbose=1, patience=100)
-        fp = self.state_estimation_data_path + "/" + "models" + "/weights.{epoch:02d}-{val_loss:.2f}.hdf5"
-        mc = ModelCheckpoint(filepath=fp, save_best_only=True, monitor="val_loss", mode="min")
-        rlr = ReduceLROnPlateau(monitor="val_loss", patience=50, factor=0.00001)
+        if self.validation is True:
+            metric = "val_loss"
+        else:
+            metric = "loss"
+
+        es = EarlyStopping(monitor=metric, mode="min", verbose=1, patience=100)
+        fp = self.state_estimation_data_path + "/" + "models" + \
+             "/weights.{epoch:02d}-{" + "{0}".format(metric) + ":.2f}.hdf5"
+        mc = ModelCheckpoint(filepath=fp, save_best_only=True, monitor=metric, mode="min")
+        rlr = ReduceLROnPlateau(monitor=metric, patience=50, factor=0.00001)
 
         callbacks = [es, mc, rlr]
 
@@ -169,5 +175,5 @@ class WorldModel(object):
 
 
 if __name__ == "__main__":
-    model = WorldModel(prediction_horizon_size=10, num_rays=50, validation=True)
+    model = WorldModel(prediction_horizon_size=10, num_rays=30, validation=False)
     model.train_model(epochs=1000, batch_size=32)
