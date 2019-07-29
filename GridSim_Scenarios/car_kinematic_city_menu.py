@@ -5,8 +5,8 @@ from button import Button
 from checkbox import Checkbox
 import config
 from inputbox_menu import InputBoxMenu
-from car_kinematic_ga import NeuroEvolutionary
-from car_kinematic_dqn import DqnSimulator
+from controllers.Controller_DQN import DqnSimulator
+from controllers.Controller_GA import NeuroEvolutionary
 import os
 import time
 import cv2

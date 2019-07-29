@@ -4,7 +4,9 @@ from action_handler import apply_action
 
 
 class CustomController(HighwaySimulator):
-
+    """
+    Controller example for highway simulator
+    """
     def __init__(self, screen, screen_width, screen_height, car_x=3, car_y=27, sensor_size=50, rays_nr=8,
                  activations=False, highway_traffic=True, record_data=False, replay_data_path=None, state_buf_path=None,
                  sensors=False, distance_sensor=False, enabled_menu=False, highway_traffic_cars_nr=5,
