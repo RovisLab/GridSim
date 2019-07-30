@@ -3,7 +3,6 @@ from keras.preprocessing.sequence import pad_sequences
 import os
 import numpy as np
 import random
-import cv2
 
 
 class StateEstimationDataGeneratorImpl(object):
@@ -201,4 +200,3 @@ class StateEstimationDataGenerator(Sequence):
             self.__impl__.file_markers.append(self.__impl__.cache_file_markers[i])
         if self.__impl__.shuffle is True:
             random.shuffle(self.__impl__.file_markers)
-

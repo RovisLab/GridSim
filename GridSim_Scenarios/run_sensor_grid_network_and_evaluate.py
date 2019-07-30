@@ -7,20 +7,25 @@ from evaluate_model import create_graphs_sensor_array, find_best_model_weights
 
 
 if __name__ == "__main__":
-    h_size = 50
+    h_size = 150
     pred_size = 10
     validation = True
     epochs = 2000
-    batch_size = 20
+    batch_size = 64
     num_rays = 30
+    normalize = False
 
-    dest_path = os.path.join(os.path.dirname(__file__), "resources", "traffic_cars_data", "state_estimation_data",
+    dest_path = os.path.join(os.path.dirname(__file__),
+                             "resources",
+                             "traffic_cars_data",
+                             "state_estimation_data",
                              "evaluated")
     base_path_training_set = "d:\\dev\\gridsim_state_estimation_data\\sensor_array\\training_data"
     evaluation_base_path = "d:\\dev\\gridsim_state_estimation_data\\sensor_array\\eval"
 
     print("[#] Initializing neural network model")
-    world_model = SensorGridWorldModel(prediction_horizon_size=10, num_rays=num_rays, validation=True)
+    world_model = SensorGridWorldModel(prediction_horizon_size=10, num_rays=num_rays,
+                                       validation=True, normalize=normalize)
     print("[##] Finished")
     base_path_neural_network = world_model.state_estimation_data_path
     print("[#] Preparing training data")

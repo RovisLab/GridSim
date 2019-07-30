@@ -13,7 +13,7 @@ class WorldModel(object):
     """
     Number of front rays must be equal to number of back rays.
     """
-    def __init__(self, prediction_horizon_size, num_rays, validation=False):
+    def __init__(self, prediction_horizon_size, num_rays, validation=False, normalize=False):
         self.state_estimation_data_path = os.path.join(os.path.dirname(__file__),
                                                        "resources",
                                                        "traffic_cars_data",
@@ -28,6 +28,7 @@ class WorldModel(object):
         self.gru_layer_num_units = 32
         self.mlp_hidden_layer_size = prediction_horizon_size
         self.mlp_output_layer_units = num_rays
+        self.normalize = normalize
         self.model = None
         self.draw_statistics = True
         self.print_summary = True
@@ -105,13 +106,15 @@ class WorldModel(object):
         generator = StateEstimationSensorArrayDataGenerator(input_file_path=self.state_estimation_data_path,
                                                             batch_size=batch_size,
                                                             prediction_horizon_size=self.mlp_hidden_layer_size,
-                                                            shuffle=True)
+                                                            shuffle=True,
+                                                            normalize=self.normalize)
         if self.validation:
             val_generator = StateEstimationSensorArrayDataGenerator(input_file_path=self.state_estimation_data_path,
                                                                     batch_size=batch_size,
                                                                     prediction_horizon_size=self.mlp_hidden_layer_size,
                                                                     shuffle=False,
-                                                                    validation=True)
+                                                                    validation=True,
+                                                                    normalize=self.normalize)
             history = self.model.fit_generator(generator=generator,
                                                epochs=epochs,
                                                validation_data=val_generator,

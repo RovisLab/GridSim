@@ -127,7 +127,8 @@ def create_graphs_sensor_array(weights_path, base_path, graph_name, num_rays):
     model.load_weights(weights_path)
 
     test_generator = StateEstimationSensorArrayDataGenerator(input_file_path=base_path, batch_size=1,
-                                                             prediction_horizon_size=10, shuffle=False, validation=True)
+                                                             prediction_horizon_size=10, shuffle=False, validation=True,
+                                                             normalize=True)
     results = model.predict_generator(test_generator)
     test_generator.reset_file_markers()
     ground_truth = list()
@@ -220,5 +221,5 @@ def convert_sign(base_path):
 if __name__ == "__main__":
     # convert_sign("d:\\dev\\gridsim_state_estimation_data\\test\\training_set")
     bp = os.path.join(os.path.dirname(__file__), "resources", "traffic_cars_data", "state_estimation_data")
-    wp = os.path.join(bp, "models", "weights.892-10.30.hdf5")
-    create_graphs_simplified(weights_path=wp, base_path=bp, graph_name="statistics_892-10.30")
+    wp = os.path.join(bp, "models", "weights.0138-1.876354.hdf5")
+    create_graphs_sensor_array(weights_path=wp, base_path=bp, graph_name="statistics_0138-1.876354", num_rays=30)

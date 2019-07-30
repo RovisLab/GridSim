@@ -98,6 +98,23 @@ class FrontSensorArrayTrainingSet(object):
                     f.write("{0},".format(a_elem))
                 f.write("\n")
 
+    def process_training_file_all(self, training_fp, action_fp, h_size, pred_size, val=False):
+        raw_elements = get_elements_from_gridsim_record_file(training_fp)
+        action_elements = get_elements_from_gridsim_record_file(action_fp)
+        action_elements = np.array(action_elements).reshape((len(action_elements))).tolist()
+        history_data, prediction_data = list(), list()
+        action_data, prev_action_data = list(), list()
+        for idx in range(len(raw_elements) - (h_size + pred_size)):
+            h_slice = raw_elements[idx:idx+h_size]
+            p_slice = raw_elements[idx+h_size:idx+h_size+pred_size]
+            p_a_slice = h_size * [action_elements[idx + h_size - 1]]
+            a_slice = action_elements[idx+h_size:idx+h_size+pred_size]
+            history_data.append(h_slice)
+            prediction_data.append(p_slice)
+            action_data.append(a_slice)
+            prev_action_data.append(p_a_slice)
+        self.write_output_data(history_data, prediction_data, action_data, prev_action_data, val)
+
     def process_training_file(self, training_fp, action_fp, h_size, pred_size, val=False):
         raw_elements = get_elements_from_gridsim_record_file(training_fp)
         action_elements = get_elements_from_gridsim_record_file(action_fp)
@@ -147,10 +164,12 @@ class FrontSensorArrayTrainingSet(object):
                 t_a_files.append(a)
 
         for f, v in zip(t_files, t_a_files):
-            self.process_training_file(training_fp=f, action_fp=v, h_size=self.h_size, pred_size=self.pred_size, val=False)
+            print("[###] Processing training files: {0}, {1}".format(f, v))
+            self.process_training_file_all(training_fp=f, action_fp=v, h_size=self.h_size, pred_size=self.pred_size, val=False)
 
         for f, v in zip(val_files, val_a_files):
-            self.process_training_file(training_fp=f, action_fp=v, h_size=self.h_size, pred_size=self.pred_size, val=True)
+            print("[###] Processing training files: {0}, {1}".format(f, v))
+            self.process_training_file_all(training_fp=f, action_fp=v, h_size=self.h_size, pred_size=self.pred_size, val=True)
 
     def get_all_output_files(self):
         fl = ["actions.npy", "observations.npy", "predictions.npy", "prev_actions.npy",

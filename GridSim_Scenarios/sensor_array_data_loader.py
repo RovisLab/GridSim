@@ -2,6 +2,7 @@ import random
 import os
 import numpy as np
 from keras.utils import Sequence
+import normalization
 
 
 class StateEstimationSensorArrayDataGeneratorImpl(object):
@@ -32,9 +33,78 @@ class StateEstimationSensorArrayDataGeneratorImpl(object):
         self.file_markers.append((0, 0, 0, 0))
         self.cache_file_markers = list()
         self.__get_file_markers()
+        self.min_obs, self.max_obs = self._get_min_max_observations()
+        self.min_pred, self.max_pred = self._get_min_max_predicitons()
+        self.min_act, self.max_act = self._get_min_max_actions()
 
     def __len__(self):
         return int(np.floor(self.num_samples / self.batch_size))
+
+    def _get_min_max_observations(self):
+        max_val = -10000
+        min_val = 10000
+        with open(self.observation_file, "r") as f:
+            while True:
+                line = f.readline()
+                if len(line) == 0:
+                    break
+                elements = list()
+                for elem in line.split(","):
+                    try:
+                        elements.append(float(elem))
+                    except ValueError:
+                        pass
+                max_line = max(elements[2:])
+                min_line = min(elements[2:])
+                if max_line > max_val:
+                    max_val = max_line
+                if min_line < min_val:
+                    min_val = min_line
+        return min_val, max_val
+
+    def _get_min_max_predicitons(self):
+        max_val = -10000
+        min_val = 10000
+        with open(self.prediction_file, "r") as f:
+            while True:
+                line = f.readline()
+                if len(line) == 0:
+                    break
+                elements = list()
+                for elem in line.split(","):
+                    try:
+                        elements.append(float(elem))
+                    except ValueError:
+                        pass
+                max_line = max(elements)
+                min_line = min(elements)
+                if max_line > max_val:
+                    max_val = max_line
+                if min_line < min_val:
+                    min_val = min_line
+        return min_val, max_val
+
+    def _get_min_max_actions(self):
+        max_val = -10000
+        min_val = 10000
+        with open(self.action_file, "r") as f:
+            while True:
+                line = f.readline()
+                if len(line) == 0:
+                    break
+                elements = list()
+                for elem in line.split(","):
+                    try:
+                        elements.append(float(elem))
+                    except ValueError:
+                        pass
+                max_line = max(elements)
+                min_line = min(elements)
+                if max_line > max_val:
+                    max_val = max_line
+                if min_line < min_val:
+                    min_val = min_line
+        return min_val, max_val
 
     def __get_num_samples(self):
         with open(self.action_file, "r") as f:
@@ -148,18 +218,38 @@ class StateEstimationSensorArrayDataGeneratorImpl(object):
 
 
 class StateEstimationSensorArrayDataGenerator(Sequence):
-    def __init__(self, input_file_path, batch_size, prediction_horizon_size, shuffle=True, validation=False):
+    def __init__(self,
+                 input_file_path,
+                 batch_size,
+                 prediction_horizon_size,
+                 shuffle=True,
+                 validation=False,
+                 normalize=False):
         self.__impl__ = StateEstimationSensorArrayDataGeneratorImpl(input_file_path=input_file_path,
                                                                     batch_size=batch_size,
                                                                     prediction_horizon_size=prediction_horizon_size,
                                                                     shuffle=shuffle,
                                                                     validation=validation)
+        self.normalize = normalize
 
     def __len__(self):
         return self.__impl__.__len__()
 
     def __getitem__(self, item):
         actions, observations, prev_actions, predictions = self.__impl__.get_batch()
+        if self.normalize is True:
+            observations = normalization.normalize_sensor_array_observations(observations,
+                                                                             self.__impl__.min_obs,
+                                                                             self.__impl__.max_obs)
+            predictions = normalization.normalize_sensor_array_predictions(predictions,
+                                                                           self.__impl__.min_pred,
+                                                                           self.__impl__.max_pred)
+            actions = normalization.normalize_actions(actions,
+                                                      self.__impl__.min_act,
+                                                      self.__impl__.max_act)
+            prev_actions = normalization.normalize_actions(prev_actions,
+                                                           self.__impl__.min_act,
+                                                           self.__impl__.max_act)
         return self._format_data(observations, actions, prev_actions, predictions)
 
     def _format_data(self, observations, actions, prev_actions, predictions):
@@ -177,6 +267,7 @@ class StateEstimationSensorArrayDataGenerator(Sequence):
                 for idx2 in range(len(predictions)):
                     pp.append(predictions[idx2][idx])
                 p.append(pp)
+
         return [observations, actions, prev_actions], p
 
     def on_epoch_end(self):
