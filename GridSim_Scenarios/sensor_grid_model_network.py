@@ -23,9 +23,9 @@ class WorldModel(object):
         self.input_shape = (None, num_rays)
         self.action_shape = (self.prediction_horizon_size,)
         self.prev_action_shape = (None, 1)
-        self.gru_num_units = 128
-        self.mlp_layer_num_units = 10
-        self.gru_layer_num_units = 32
+        self.gru_num_units = 256
+        self.mlp_layer_num_units = 100
+        self.num_rays = num_rays
         self.mlp_hidden_layer_size = prediction_horizon_size
         self.mlp_output_layer_units = num_rays
         self.normalize = normalize
@@ -36,11 +36,12 @@ class WorldModel(object):
 
     def _build_architecture(self):
         input_layer = Input(shape=self.input_shape)
-        dense_input = Dense(units=256)(input_layer)
+        dense_input = Dense(units=self.num_rays, activation="relu")(input_layer)
+        dense_input = Dense(units=100, activation="relu")(dense_input)
         action_layer = Input(shape=self.action_shape)
         prev_action_layer = Input(shape=self.prev_action_shape)
-        action_dense = Dense(10, activation="relu")(action_layer)
-        prev_action_dense = Dense(10, activation="relu")(prev_action_layer)
+        action_dense = Dense(100, activation="relu")(action_layer)
+        prev_action_dense = Dense(100, activation="relu")(prev_action_layer)
         gru_input = Concatenate()([dense_input, prev_action_dense])
         gru = GRU(units=self.gru_num_units)(gru_input)
         mlp_outputs = list()
@@ -52,7 +53,7 @@ class WorldModel(object):
             mlp_outputs.append(mlp_output)
 
         self.model = Model([input_layer, action_layer, prev_action_layer], mlp_outputs)
-        self.model.compile(optimizer=Adam(lr=0.00005), loss="mean_squared_error", metrics=["mae", "accuracy"])
+        self.model.compile(optimizer=Adam(lr=0.0005), loss="mean_squared_error", metrics=["mae", "accuracy"])
 
     def _build_architecture2(self):
         input_layer = Input(shape=self.input_shape)
