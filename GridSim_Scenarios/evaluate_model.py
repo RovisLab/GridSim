@@ -8,6 +8,7 @@ from data_loader import StateEstimationDataGenerator
 from sensor_array_data_loader import StateEstimationSensorArrayDataGenerator
 from sensor_grid_model_network import WorldModel
 from simplified_world_model_network import WorldModel as SimplifiedWorldModel
+from grid_visualizer import create_visual_evaluation
 
 
 def fit_distance_into_percentile(dist, percentile):
@@ -128,7 +129,7 @@ def create_graphs_sensor_array(weights_path, base_path, graph_name, num_rays):
 
     test_generator = StateEstimationSensorArrayDataGenerator(input_file_path=base_path, batch_size=1,
                                                              prediction_horizon_size=10, shuffle=False, validation=True,
-                                                             normalize=True)
+                                                             normalize=False)
     results = model.predict_generator(test_generator)
     test_generator.reset_file_markers()
     ground_truth = list()
@@ -145,6 +146,19 @@ def create_graphs_sensor_array(weights_path, base_path, graph_name, num_rays):
     draw_per_sample_error_sensor_array(ground_truth, results, base_path, graph_name)
 
     model.save_model()
+
+
+def create_sensor_output(weights_path, base_path, num_rays):
+    model = WorldModel(prediction_horizon_size=10, num_rays=30, validation=True, normalize=False)
+    model.load_weights(weights_path=weights_path)
+    test_generator = StateEstimationSensorArrayDataGenerator(input_file_path=base_path, batch_size=1,
+                                                             prediction_horizon_size=10, shuffle=False, validation=True,
+                                                             normalize=False)
+    results = model.predict_generator(test_generator)
+    create_visual_evaluation(gt_file=os.path.join(base_path, "predictions_val.npy"),
+                             predictions=results,
+                             dest_base_path=os.path.join(base_path, "perf"),
+                             num_rays=num_rays)
 
 
 def create_graphs_simplified(weights_path, base_path, graph_name):
@@ -220,6 +234,17 @@ def convert_sign(base_path):
 
 if __name__ == "__main__":
     # convert_sign("d:\\dev\\gridsim_state_estimation_data\\test\\training_set")
-    bp = os.path.join(os.path.dirname(__file__), "resources", "traffic_cars_data", "state_estimation_data")
-    wp = os.path.join(bp, "models", "weights.0138-1.876354.hdf5")
-    create_graphs_sensor_array(weights_path=wp, base_path=bp, graph_name="statistics_0138-1.876354", num_rays=30)
+    # bp = os.path.join(os.path.dirname(__file__), "resources", "traffic_cars_data", "state_estimation_data")
+    # wp = os.path.join(bp, "models", "weights.0138-1.876354.hdf5")
+    # create_graphs_sensor_array(weights_path=wp, base_path=bp, graph_name="statistics_0138-1.876354", num_rays=30)
+    create_sensor_output(weights_path=os.path.join(os.path.dirname(__file__),
+                                                   "resources",
+                                                   "traffic_cars_data",
+                                                   "state_estimation_data",
+                                                   "models",
+                                                   "weights.0146-6718.272902.hdf5"),
+                         base_path=os.path.join(os.path.dirname(__file__),
+                                                "resources",
+                                                "traffic_cars_data",
+                                                "state_estimation_data"),
+                         num_rays=30)

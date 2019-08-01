@@ -4,6 +4,7 @@ import shutil
 from sensor_grid_model_network import WorldModel as SensorGridWorldModel
 from sensor_array_world_model_training_set import FrontSensorArrayTrainingSet
 from evaluate_model import create_graphs_sensor_array, find_best_model_weights
+from grid_visualizer import create_visual_evaluation
 
 
 if __name__ == "__main__":
@@ -122,6 +123,12 @@ if __name__ == "__main__":
     for g in stats_graphics:
         shutil.copyfile(g, os.path.join(eval_dir, os.path.basename(g)))
     print("[##] Finished")
+
+    print("[#] Creating visual grid evaluation")
+    gt_file = os.path.join(train_dir, "predictions.npy")
+
+
+
     print("[#] Removing clutter")
 
     for output_file in output_files:

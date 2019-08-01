@@ -1,6 +1,6 @@
 import os
 import numpy as np
-from keras.layers import Conv2D, Dense, GRU, Concatenate, Lambda, Masking, Input, Reshape, Flatten, Conv1D
+from keras.layers import Conv2D, Dense, GRU, Concatenate, Lambda, Masking, Input, Reshape, Conv1D, BatchNormalization
 from keras.models import Model, model_from_json
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
@@ -37,18 +37,19 @@ class WorldModel(object):
     def _build_architecture(self):
         input_layer = Input(shape=self.input_shape)
         dense_input = Dense(units=self.num_rays, activation="relu")(input_layer)
-        dense_input = Dense(units=100, activation="relu")(dense_input)
         action_layer = Input(shape=self.action_shape)
         prev_action_layer = Input(shape=self.prev_action_shape)
         action_dense = Dense(100, activation="relu")(action_layer)
         prev_action_dense = Dense(100, activation="relu")(prev_action_layer)
         gru_input = Concatenate()([dense_input, prev_action_dense])
-        gru = GRU(units=self.gru_num_units)(gru_input)
+        gru_input_bn = BatchNormalization()(gru_input)
+        gru = GRU(units=self.gru_num_units)(gru_input_bn)
         mlp_outputs = list()
         for idx in range(self.mlp_hidden_layer_size):
             mlp_inputs = Lambda(lambda x: x[:, :idx + 1])(action_dense)
             mlp_in = Concatenate()([gru, mlp_inputs])
-            mlp = Dense(units=self.mlp_layer_num_units, activation="relu")(mlp_in)
+            mlp_in_bn = BatchNormalization()(mlp_in)
+            mlp = Dense(units=self.mlp_layer_num_units, activation="relu")(mlp_in_bn)
             mlp_output = Dense(units=self.mlp_output_layer_units, activation="relu")(mlp)
             mlp_outputs.append(mlp_output)
 
