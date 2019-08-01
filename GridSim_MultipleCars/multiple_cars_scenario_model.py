@@ -7,6 +7,10 @@ from collision import Collision
 from car import Car
 from math_util import *
 from read_write_trajectory import write_data, write_state_buf
+import ctypes
+from mpc_development import MPCController
+import math
+from math import sin, cos
 
 
 class MultipleCarsSimulator:
@@ -109,6 +113,25 @@ class MultipleCarsSimulator:
         else:
             self.car4_checkbox = None
 
+        # MPC VARIABLES
+        # currently implemented only for 2 cars
+        self.mpc_input_data_car1 = None
+        self.mpc_trajectory_points_car1 = []
+        self.mpc_delta_car1 = 0
+        self.mpc_acc_car1 = 0
+        self.mpc_angle_car1 = 0
+        self.mpc_coords_car1 = [0, 0]
+
+        self.mpc_input_data_car2 = None
+        self.mpc_trajectory_points_car2 = []
+        self.mpc_delta_car2 = 0
+        self.mpc_acc_car2 = 0
+        self.mpc_angle_car2 = 0
+        self.mpc_coords_car2 = [0, 0]
+
+        self.prev_ref_index_car1 = 40
+        self.prev_ref_index_car2 = 40
+
     def init_kinematic_cars(self):
         for position, car_index in zip(self.positions_list, range(1, self.cars_nr + 1)):
             car_tag = "car_" + str(car_index)
@@ -116,6 +139,7 @@ class MultipleCarsSimulator:
             car_image = pygame.image.load(car_image_path).convert_alpha()
             car_image = pygame.transform.scale(car_image, (42, 20))
             car = Car(position[0], position[1], car_tag=car_tag, car_image=car_image)
+            car.max_velocity = 10
             if len(position) == 3:
                 car.angle = position[2]
             self.kinematic_cars[car_tag] = car
@@ -147,43 +171,106 @@ class MultipleCarsSimulator:
         else:
             return True
 
-    def compute_sensor_distance(self, car, base_point, sensor_length, sensor_angle, data_screen, draw_screen):
-        end_point_x = base_point[0] + sensor_length * cos(radians(sensor_angle - car.angle))
-        end_point_y = base_point[1] + sensor_length * sin(radians(sensor_angle - car.angle))
+    @staticmethod
+    def compute_end_point(side, base_point, sensor_length, sensor_angle, car_angle):
+        if side is 'front':
+            end_point_x = base_point[0] + sensor_length * cos(radians(sensor_angle - car_angle))
+            end_point_y = base_point[1] + sensor_length * sin(radians(sensor_angle - car_angle))
+        elif side is 'rear':
+            end_point_x = base_point[0] - sensor_length * cos(radians(sensor_angle - car_angle))
+            end_point_y = base_point[1] - sensor_length * sin(radians(sensor_angle - car_angle))
+        else:
+            raise ValueError("Side not defined.")
+        return end_point_x, end_point_y
 
-        for index in range(0, sensor_length):
-            coll_point_x = base_point[0] + index * cos(radians(sensor_angle - car.angle))
-            coll_point_y = base_point[1] + index * sin(radians(sensor_angle - car.angle))
+    def compute_collision_point(self, side, base_point, sensor_length, sensor_angle, car_angle, data_screen, draw_screen,
+                                end_point):
+        if side is 'front':
+            for index in range(0, sensor_length):
+                coll_point_x = base_point[0] + index * cos(radians(sensor_angle - car_angle))
+                coll_point_y = base_point[1] + index * sin(radians(sensor_angle - car_angle))
 
-            if np.array_equal(data_screen.get_at((int(coll_point_x), int(coll_point_y))), self.bkd_color):
-                break
+                try:
+                    if np.array_equal(data_screen.get_at((int(coll_point_x), int(coll_point_y))), self.bkd_color):
+                        break
+                except:
+                    pass
 
-        pygame.draw.line(draw_screen, (0, 255, 0), base_point, (coll_point_x, coll_point_y), True)
-        pygame.draw.line(draw_screen, (255, 0, 0), (coll_point_x, coll_point_y), (end_point_x, end_point_y), True)
+            pygame.draw.line(draw_screen, (0, 255, 0), base_point, (coll_point_x, coll_point_y), True)
+            pygame.draw.line(draw_screen, (255, 0, 0), (coll_point_x, coll_point_y), (end_point[0], end_point[1]), True)
+        elif side is 'rear':
+            for index in range(0, sensor_length):
+                coll_point_x = base_point[0] - index * cos(radians(sensor_angle - car_angle))
+                coll_point_y = base_point[1] - index * sin(radians(sensor_angle - car_angle))
 
-        coll_point = (coll_point_x, coll_point_y)
+                try:
+                    if np.array_equal(data_screen.get_at((int(coll_point_x), int(coll_point_y))), self.bkd_color):
+                        break
+                except:
+                    pass
+
+            pygame.draw.line(draw_screen, (0, 255, 0), base_point, (coll_point_x, coll_point_y), True)
+            pygame.draw.line(draw_screen, (255, 0, 0), (coll_point_x, coll_point_y), (end_point[0], end_point[1]), True)
+        else:
+            raise ValueError("Side not defined.")
+
+        return coll_point_x, coll_point_y
+
+    def compute_sensor_distance(self, car, base_point, sensor_length, sensor_angle, data_screen, draw_screen, side=None):
+
+        end_point = self.compute_end_point(side, base_point, sensor_length, sensor_angle, car.angle)
+        coll_point = self.compute_collision_point(side, base_point, sensor_length, sensor_angle, car.angle, data_screen,
+                                                  draw_screen, end_point)
 
         distance = euclidean_norm(base_point, coll_point)
         # print(distance)
 
         return distance
 
-    def enable_sensor(self, car, draw_screen, rays_nr):
+    def enable_front_sensor(self, car, draw_screen, rays_nr):
         """
-        distance sensor
+        front distance sensor
         :param car:
         :param data_screen:
         :param draw_screen:
         :param rays_nr:
         :return:
         """
-        center_rect = Collision.center_rect(self.screen_width, self.screen_height)
-        mid_of_front_axle = Collision.point_rotation(car, 0, 16, center_rect)
+
+        position = self.global_cars_positions[car.car_tag]
+        center = Collision.calculate_center_for_car(car, position)
+        if car.car_tag == self.current_car:
+            center = Collision.center_rect(self.screen_width, self.screen_height)
+        mid_of_front_axle = Collision.point_rotation(car, 0, 16, center)
+
         distance = np.array([])
         for angle_index in range(120, 240, int(round(120/rays_nr))):
             distance = np.append(distance,
                                  self.compute_sensor_distance(car, mid_of_front_axle, 200, angle_index, self.object_mask,
-                                                              draw_screen))
+                                                              draw_screen, side='front'))
+        return distance
+
+    def enable_rear_sensor(self, car, draw_screen, rays_nr):
+        """
+        rear distance sensor
+        :param car:
+        :param data_screen:
+        :param draw_screen:
+        :param rays_nr:
+        :return:
+        """
+
+        position = self.global_cars_positions[car.car_tag]
+        center = Collision.calculate_center_for_car(car, position)
+        if car.car_tag == self.current_car:
+            center = Collision.center_rect(self.screen_width, self.screen_height)
+        mid_of_rear_axle = Collision.point_rotation(car, 65, 16, center)
+
+        distance = np.array([])
+        for angle_index in range(120, 240, int(round(120/rays_nr))):
+            distance = np.append(distance,
+                                 self.compute_sensor_distance(car, mid_of_rear_axle, 200, angle_index, self.object_mask,
+                                                              draw_screen, side='rear'))
         return distance
 
     def optimized_front_sensor(self, car, act_mask, display_obstacle_on_sensor=False):
@@ -323,8 +410,8 @@ class MultipleCarsSimulator:
         for car in self.kinematic_cars:
             car_to_draw = self.kinematic_cars[car]
             if car_to_draw.car_tag != self.current_car:
-                draw_pos_x = (car_to_draw.position.x * self.ppu - stagePosX) + car_to_draw.car_image.get_width()/2
-                draw_pos_y = (car_to_draw.position.y * self.ppu - stagePosY) + car_to_draw.car_image.get_height()/2
+                draw_pos_x = (car_to_draw.position.x * self.ppu - stagePosX) + car_to_draw.car_image.get_height()/2
+                draw_pos_y = (car_to_draw.position.y * self.ppu - stagePosY) + car_to_draw.car_image.get_width()/2
 
                 x = self.screen_width / 2 - draw_pos_x
                 y = self.screen_height / 2 - draw_pos_y
@@ -598,14 +685,18 @@ class MultipleCarsSimulator:
 
     def activate_sensors_for_all_cars(self):
 
+        self.rays_sensor_distances = []
         for car in self.kinematic_cars:
             if self.cbox_all_cars_visual_sensors.isChecked():
-                temp_sensor_mask = pygame.Surface((self.screen_width, self.screen_height))
-                self.optimized_front_sensor(self.kinematic_cars[car], temp_sensor_mask, display_obstacle_on_sensor=True)
-                self.optimized_rear_sensor(self.kinematic_cars[car], temp_sensor_mask, display_obstacle_on_sensor=True)
-                image_rect = pygame.Rect((440, 160), (400, 400))
-                sensor_sub = temp_sensor_mask.subsurface(image_rect)
-                self.sensor_masks[car] = sensor_sub
+                # temp_sensor_mask = pygame.Surface((self.screen_width, self.screen_height))
+                # self.optimized_front_sensor(self.kinematic_cars[car], temp_sensor_mask, display_obstacle_on_sensor=True)
+                # self.optimized_rear_sensor(self.kinematic_cars[car], temp_sensor_mask, display_obstacle_on_sensor=True)
+                # image_rect = pygame.Rect((440, 160), (400, 400))
+                # sensor_sub = temp_sensor_mask.subsurface(image_rect)
+                # self.sensor_masks[car] = sensor_sub
+                self.rays_sensor_distances.append([self.enable_front_sensor(self.kinematic_cars[car], self.screen, self.rays_nr),
+                                                   self.enable_rear_sensor(self.kinematic_cars[car], self.screen,
+                                                                           self.rays_nr)])
 
     def activate_sensors(self, car):
         """
@@ -619,7 +710,8 @@ class MultipleCarsSimulator:
             self.optimized_rear_sensor(car, self.sensor_mask, display_obstacle_on_sensor=True)
         if self.cbox_distance_sensor.isChecked():
             if self.cbox_rear_sensor.isChecked() is False and self.cbox_front_sensor.isChecked() is False:
-                self.rays_sensor_distances = self.enable_sensor(car, self.screen, self.rays_nr)
+                self.rays_sensor_distances = [self.enable_front_sensor(car, self.screen, self.rays_nr),
+                                              self.enable_rear_sensor(car, self.screen, self.rays_nr)]
 
     def record_data_function(self, car_tags, index):
         """
@@ -669,4 +761,145 @@ class MultipleCarsSimulator:
         :return:
         """
         pass
+
+    """
+    MPC FUNCTIONS
+    """
+
+    @staticmethod
+    def rotate_x_point(point_x, point_y, angle):
+        return point_x * cos(np.deg2rad(angle)) - point_y * sin(np.deg2rad(angle))
+
+    @staticmethod
+    def rotate_y_point(point_x, point_y, angle):
+        return point_x * sin(np.deg2rad(angle)) + point_y * cos(np.deg2rad(angle))
+
+    def draw_mpc_prediction(self, *args, mpc_solution, car_tag):
+        """
+
+        :param args: args[0] -> mpc_traj_points_carX, args[1] -> mpc_angle_carX
+        :param mpc_solution:
+        :param car_tag:
+        :return:
+        """
+        if car_tag == self.current_car:
+            center_screen = (int(self.screen_width / 2), int(self.screen_height / 2))
+        else:
+            position = self.global_cars_positions[car_tag]
+            center_screen = Collision.calculate_center_for_car(self.kinematic_cars[car_tag], position)
+
+        args[0].clear()
+        for index in range(2, 20, 2):
+            delta_position = (
+                 mpc_solution[index] * cos(np.deg2rad(args[1])) + mpc_solution[index + 1] * sin(np.deg2rad(args[1])),
+                 mpc_solution[index] * (-sin(np.deg2rad(args[1]))) + mpc_solution[index + 1] * cos(np.deg2rad(args[1])))
+            x_point = center_screen[0] - int(delta_position[0] * self.ppu)
+            y_point = center_screen[1] - int(delta_position[1] * self.ppu)
+            traj_point = (x_point, y_point)
+            args[0].append(traj_point)
+
+    def prepare_mpc_input(self, car, waypoints):
+        if car.car_tag == 'car_1':
+            self.mpc_input_data_car1 = (ctypes.c_double * 14)()
+            for index in range(6):
+                self.mpc_input_data_car1[index*2] = waypoints[index][0]
+            for index in range(6):
+                self.mpc_input_data_car1[index*2+1] = waypoints[index][1]
+            self.mpc_input_data_car1[12] = np.deg2rad(car.angle)
+            self.mpc_input_data_car1[13] = car.velocity[0]
+        elif car.car_tag == 'car_2':
+            self.mpc_input_data_car2 = (ctypes.c_double * 14)()
+            for index in range(6):
+                self.mpc_input_data_car2[index * 2] = waypoints[index][0]
+            for index in range(6):
+                self.mpc_input_data_car2[index * 2 + 1] = waypoints[index][1]
+            self.mpc_input_data_car2[12] = np.deg2rad(car.angle)
+            self.mpc_input_data_car2[13] = car.velocity[0]
+        else:
+            raise ValueError("Car tag not defined.")
+
+    def draw_trajectory(self, car, car_data):
+        # draw trajectory
+        """
+
+        :param car:
+        :param car_data:
+        :return:
+        """
+        if car.car_tag == self.current_car:
+            center_screen = (int(self.screen_width / 2), int(self.screen_height / 2))
+        else:
+            position = self.global_cars_positions[car.car_tag]
+            center_screen = Collision.calculate_center_for_car(car, position)
+
+        trajectory_points = []
+        waypoints = []
+        min = 1000
+        idx = -1
+        if car.car_tag == 'car_1':
+            prev_ref_index = self.prev_ref_index_car1
+        elif car.car_tag == 'car_2':
+            prev_ref_index = self.prev_ref_index_car2
+        else:
+            raise ValueError("Car tag not defined")
+
+        for elem in range(prev_ref_index-40, prev_ref_index+40):
+            dx = car_data[elem][0] - car.position[0]
+            dy = car_data[elem][1] - car.position[1]
+            d = abs(math.sqrt(dx**2+dy**2))
+            if d < min:
+                min = d
+                idx = elem
+                prev_ref_index = idx
+
+        if car.car_tag == 'car_1':
+            self.prev_ref_index_car1 = prev_ref_index
+        elif car.car_tag == 'car_2':
+            self.prev_ref_index_car2 = prev_ref_index
+        else:
+            raise ValueError("Car tag not defined")
+
+        for add_elem in range(idx, idx + 150, 15):
+            if add_elem < len(car_data):
+                delta_position = (
+                    car.position[0] - car_data[add_elem][0],
+                    car.position[1] - car_data[add_elem][1])
+                x_point = center_screen[0] + int(delta_position[0] * self.ppu)
+                y_point = center_screen[1] + int(delta_position[1] * self.ppu)
+                traj_point = (x_point, y_point)
+                trajectory_points.append(traj_point)
+
+                if len(waypoints) < 9:
+                    waypoints.append((car_data[add_elem][0], car_data[add_elem][1]))
+
+                # draw each trajectory point
+                pygame.draw.circle(self.screen, (255, 255, 0), traj_point, 2, 2)
+
+        # draw lines between trajectory points
+        for traj_point, next_traj_point in zip(trajectory_points, trajectory_points[1:]):
+            pygame.draw.aaline(self.screen, (255, 255, 0), traj_point, next_traj_point, 10)
+
+        self.prepare_mpc_input(car, waypoints)
+        if car.car_tag == 'car_1':
+            if len(self.mpc_trajectory_points_car1) > 0:
+                for traj_point, next_traj_point in zip(self.mpc_trajectory_points_car1, self.mpc_trajectory_points_car1[1:]):
+                    pygame.draw.aaline(self.screen, (0, 255, 0), traj_point, next_traj_point, 10)
+        elif car.car_tag == 'car_2':
+            if len(self.mpc_trajectory_points_car2) > 0:
+                for traj_point, next_traj_point in zip(self.mpc_trajectory_points_car2, self.mpc_trajectory_points_car2[1:]):
+                    pygame.draw.aaline(self.screen, (0, 255, 0), traj_point, next_traj_point, 10)
+
+    def mpc_thread(self, mpc_target_speed=30, mpc_dt=0.1):
+        controller = MPCController(target_speed=mpc_target_speed, dt=mpc_dt)
+        while True:
+            mpc_solution_car1 = controller.control(self.mpc_input_data_car1, self.mpc_coords_car1)
+            mpc_solution_car2 = controller.control(self.mpc_input_data_car2, self.mpc_coords_car2)
+            self.mpc_delta_car1 = mpc_solution_car1[0]
+            self.mpc_acc_car1 = mpc_solution_car1[1]
+            self.mpc_delta_car2 = mpc_solution_car2[0]
+            self.mpc_acc_car2 = mpc_solution_car2[1]
+            self.draw_mpc_prediction(self.mpc_trajectory_points_car1, self.mpc_angle_car1, mpc_solution=mpc_solution_car1,
+                                     car_tag='car_1')
+            self.draw_mpc_prediction(self.mpc_trajectory_points_car2, self.mpc_angle_car2, mpc_solution=mpc_solution_car2,
+                                     car_tag='car_2')
 

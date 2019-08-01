@@ -86,6 +86,9 @@ class MultipleCarsCity(MultipleCarsSimulator):
                          self.screen_height)
 
     def custom(self, *args):
+        super().custom(args)
+
+    def examples(self, *args):
         super().custom()
         car_tags = args[0]
         example = args[1]
@@ -124,7 +127,6 @@ class MultipleCarsCity(MultipleCarsSimulator):
         if example == 'example_4':
             car_data, visual_data, distance_data = self.access_simulator_data(car_tags, car_data_bool=True,
                                                                               visual_sensor_data_bool=True)
-            print(car_data)
             visual_data_resized = []
             if type(visual_data) == list:
                 for image in visual_data:
@@ -138,7 +140,7 @@ class MultipleCarsCity(MultipleCarsSimulator):
                 visual_data_resized = pygame.transform.scale(visual_data, (100, 100))
                 self.screen.blit(visual_data_resized, (10, 10))
 
-    def run(self, car_tags):
+    def run(self, car_tags=[]):
         super().run()
 
         # initialize cars
@@ -172,7 +174,7 @@ class MultipleCarsCity(MultipleCarsSimulator):
             self.key_handler(car, self.dt, rs_pos_list)
 
             # FOR EXAMPLE 1 AND 2
-            self.custom(car_tags, 'example_')  # run examples 1, 2 from here
+            # self.examples(car_tags, 'example_')  # run examples 1, 2 from here
 
             # DRAWING
             stage_pos = self.draw_sim_environment(car, print_coords=True, print_other_cars_coords=False)
@@ -191,8 +193,10 @@ class MultipleCarsCity(MultipleCarsSimulator):
             self.activate_sensors(car)
             self.activate_sensors_for_all_cars()
 
-            # CUSTOM FUNCTION TAB -> CHECK FUNCTION FOR EXAMPLES
-            self.custom(car_tags, 'example_4')  # run examples 3, 4 from here
+            # EXAMPLES FUNCTION TAB -> CHECK FUNCTION FOR EXAMPLES
+            # self.examples(car_tags, 'example_4')  # run examples 3, 4 from here
+
+            self.custom()
 
             # RECORD TAB
             if self.record_data is True:
@@ -208,5 +212,5 @@ if __name__ == '__main__':
     # give positions with angle if necessary
     postions_list = [(5, 27), (25, 27), (5, 45, -90), (-15, 27, -180)]
     city_simulator = MultipleCarsCity(positions_list=postions_list, screen_width=1280, screen_height=720, traffic=False,
-                                      cars_nr=4, all_cars_visual_sensors=False)
+                                      cars_nr=2, all_cars_visual_sensors=False)
     city_simulator.run(['car_1', 'car_2'])
