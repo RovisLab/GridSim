@@ -37,6 +37,7 @@ class WorldModel(object):
     def _build_architecture(self):
         input_layer = Input(shape=self.input_shape)
         dense_input = Dense(units=self.num_rays, activation="relu")(input_layer)
+        dense_input = Dense(units=100, activation="relu")(dense_input)
         action_layer = Input(shape=self.action_shape)
         prev_action_layer = Input(shape=self.prev_action_shape)
         action_dense = Dense(100, activation="relu")(action_layer)

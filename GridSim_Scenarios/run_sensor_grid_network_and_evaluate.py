@@ -127,8 +127,6 @@ if __name__ == "__main__":
     print("[#] Creating visual grid evaluation")
     gt_file = os.path.join(train_dir, "predictions.npy")
 
-
-
     print("[#] Removing clutter")
 
     for output_file in output_files:
