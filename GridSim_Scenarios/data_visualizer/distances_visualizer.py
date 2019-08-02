@@ -1,4 +1,4 @@
-from read_write_trajectory import read_distances, read_coords
+from read_write_trajectory import read_distances, read_coords, read_distances_ignore_comma
 import numpy as np
 import matplotlib.pyplot as plt
 import os
@@ -429,26 +429,28 @@ class DistancesVisualizer(object):
         image_list = list()
         if len(gt_batch) < batch_size:
             return
-        for angle, g, p in zip(car_angle_data, gt_batch, pred_batch):
-            image_list.append((self.reconstruct_sensor_image(image_w, image_h, angle,
-                                                             draw_car=draw_car,
-                                                             front_sensor_data=g,
-                                                             rear_sensor_data=None,
-                                                             sensor_length=sensor_length),
-                               self.reconstruct_sensor_image(image_w, image_h, angle,
-                                                             draw_car=draw_car,
-                                                             front_sensor_data=p,
-                                                             rear_sensor_data=None,
-                                                             sensor_length=sensor_length)))
+        for angle, g in zip(car_angle_data, gt_batch):
+            image_list.append(self.reconstruct_sensor_image(image_w, image_h, angle,
+                                                            draw_car=draw_car,
+                                                            front_sensor_data=g,
+                                                            rear_sensor_data=None,
+                                                            sensor_length=sensor_length))
+        for angle, p in zip(car_angle_data, pred_batch):
+            image_list.append(self.reconstruct_sensor_image(image_w, image_h, angle,
+                                                            draw_car=draw_car,
+                                                            front_sensor_data=p,
+                                                            rear_sensor_data=None,
+                                                            sensor_length=sensor_length))
         self.save_images(image_batch=image_list,
                          dest_path=os.path.join(base_path, "prediction_{0}.png".format(batch_idx)),
                          image_h=image_h,
-                         image_w=image_w)
+                         image_w=image_w,
+                         batch_size=batch_size)
 
     def save_parallel_sensor_data(self, gt, pred, image_h, image_w, batch_size, draw_car,
                                   sensor_length, base_path):
-        gt = read_distances(gt)
-        pred = read_distances(pred)
+        gt = read_distances_ignore_comma(gt)
+        pred = read_distances_ignore_comma(pred)
         size = min(len(gt), len(pred))
         counter = 1
         for idx in range(0, size, batch_size):
@@ -470,16 +472,14 @@ class DistancesVisualizer(object):
             output.append(elem[1])
         return output
 
-    def save_images(self, image_batch, dest_path, image_w, image_h):
-        batch_size = len(image_batch)
+    def save_images(self, image_batch, dest_path, image_w, image_h, batch_size):
         images_per_col = batch_size
         images_per_row = 2
         display_grid = self.initialize_image_grid(image_w, image_h, images_per_col, images_per_row)
         row = 0
         col = 0
-        expanded_image_list = self.expand_list(image_batch)
-        for idx in range(len(expanded_image_list)):
-            np_img = self.convert_surface_to_opencv_img(expanded_image_list[idx])
+        for idx in range(len(image_batch)):
+            np_img = self.convert_surface_to_opencv_img(image_batch[idx])
             res_np_img = cv2.cvtColor(self.resize_image(np_img, (image_w, image_h)), cv2.COLOR_BGR2RGB)
             row_offset = row * image_w
             col_offset = col * image_h
@@ -493,14 +493,9 @@ class DistancesVisualizer(object):
         w, h = int(display_grid.size[0] * 1 / 2), int(display_grid.size[1] * 1 / 2)
         open_cv_image = np.array(display_grid)
         open_cv_image = open_cv_image[:, :, ::-1].copy()
-        open_cv_image = self.resize_image(open_cv_image, (w, h))
+        #open_cv_image = self.resize_image(open_cv_image, (w, h))
         print("Saving image to path: {0}".format(dest_path))
         cv2.imwrite(dest_path, open_cv_image)
-
-    def save_images_parallel(self, image_list, batch_size, base_path, image_w, image_h):
-        for idx in range(0, len(image_list) - batch_size, batch_size):
-            image_batch = image_list
-            self.save_images(image_batch, os.path.join(base_path, "prediction_{0}.png".format(idx)), image_w, image_h)
 
     def visualize_sensor_data(self, image_h, image_w, batch_size=8, draw_car=False, sensor_length=200, viewtime=0.1,
                               matplotlib=False, opencv=False):

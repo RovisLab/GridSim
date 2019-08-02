@@ -26,7 +26,10 @@ def calculate_statistics_sensor_array(results, ground_truth):
     accumulator = np.zeros(shape=(results.shape[0], len(percentile)))
     for i in range(len(results)):
         for j in range(len(results[i])):
-            dist = abs(np.mean(results[i][j]) - np.mean(ground_truth[i][j])) / abs(np.mean(ground_truth[i][j])) * 100.0
+            dist_v = abs(results[i][j] - ground_truth[i][j])
+            dist = np.mean(dist_v) / np.mean(ground_truth[i][j])
+            dist *= 100.0
+            # dist = abs(np.mean(results[i][j]) - np.mean(ground_truth[i][j])) / abs(np.mean(ground_truth[i][j])) * 100.0
             idx = fit_distance_into_percentile(dist, percentile)
             accumulator[i][idx] += 1
     return percentile, accumulator

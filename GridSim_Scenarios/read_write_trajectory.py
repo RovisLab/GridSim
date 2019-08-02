@@ -150,3 +150,21 @@ def read_distances(fname):
             return distances_dataset
     except:
         raise OSError('path to distances.txt does not exists')
+
+
+def read_distances_ignore_comma(fname):
+    with open(fname, "r") as csvfile:
+        processed = list()
+        while True:
+            line = csvfile.readline()
+            if len(line) == 0:
+                break
+            float_elems = list()
+            elements = line.split(",")
+            for x in elements:
+                try:
+                    float_elems.append(float(x))
+                except ValueError:
+                    pass
+            processed.append(float_elems)
+    return np.asanyarray(processed)

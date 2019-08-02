@@ -3,10 +3,125 @@ import datetime
 import shutil
 from sensor_grid_model_network import WorldModel as SensorGridWorldModel
 from sensor_array_world_model_training_set import FrontSensorArrayTrainingSet
-from evaluate_model import create_graphs_sensor_array, find_best_model_weights
-from grid_visualizer import create_visual_evaluation
+from evaluate_model import create_graphs_sensor_array, find_best_model_weights, create_sensor_output
 
 
+def run(*args, preprocess_data=True, train=True, perf_graph=True, grid_output=True, cleanup=True, plot_model=True):
+    h_size = args[0]
+    pred_size = args[1]
+    validation = args[2]
+    epochs = args[3]
+    batch_size = args[4]
+    num_rays = args[5]
+    normalize = args[6]
+    dest_path = args[7]
+    base_path_training_set = args[8]
+    evaluation_base_path = args[9]
+
+    dirname = "sensor_array_{0}epochs_{1}".format(epochs,
+                                                  str(datetime.datetime.now().time()).replace(":", "_").replace(".",
+                                                                                                                "_"))
+    crt_dirname = os.path.join(dest_path, dirname)
+    os.mkdir(crt_dirname)
+    model_dir = os.path.join(crt_dirname, "model")
+    eval_dir = os.path.join(crt_dirname, "evaluation")
+    train_dir = os.path.join(crt_dirname, "training_data")
+    os.mkdir(model_dir)
+    os.mkdir(eval_dir)
+    os.mkdir(train_dir)
+
+    if not os.path.exists(dest_path):
+        os.makedirs(dest_path)
+    if not os.path.exists(base_path_training_set):
+        raise IOError
+    if not os.path.exists(evaluation_base_path):
+        os.makedirs(evaluation_base_path)
+
+    print("[#] Initializing neural network model")
+    world_model = SensorGridWorldModel(prediction_horizon_size=pred_size, num_rays=num_rays,
+                                       validation=validation, normalize=normalize)
+    print("[##] Finished")
+    base_path_neural_network = world_model.state_estimation_data_path
+    if preprocess_data:
+        print("[#] Preparing training data")
+
+        training_set = FrontSensorArrayTrainingSet(base_path=base_path_training_set,
+                                                   strict=True,
+                                                   h_size=h_size,
+                                                   pred_size=pred_size)
+        training_set.process_all_data()
+
+        print("[##] Finished")
+        print("[#] Copying training data to neural network working directory")
+        output_files = training_set.get_all_output_files()
+
+        for training_file in output_files:
+            try:
+                shutil.copyfile(training_file, os.path.join(base_path_neural_network, os.path.basename(training_file)))
+            except shutil.SameFileError:
+                pass
+        print("[##] Finished")
+    else:
+        print("[##] Skipping training data preprocessing")
+
+    if train:
+        print("[#] Training neural network")
+        world_model.train_model(epochs=epochs, batch_size=batch_size)
+        print("[##] Finished")
+    else:
+        print("[##] Skipping training network")
+
+    if perf_graph:
+        print("[#] Creating performance graphics")
+
+        best_model, loss_val = find_best_model_weights(os.path.join(base_path_neural_network, "models"))
+
+        create_graphs_sensor_array(weights_path=best_model,
+                                   base_path=evaluation_base_path,
+                                   graph_name="statistics_{0}".format(loss_val),
+                                   num_rays=num_rays)
+        print("[##] Finished")
+    else:
+        print("[##] Skipping performance graphics")
+
+    if grid_output:
+        print("[#] Creating sensor grid output visualization")
+        best_model, _ = find_best_model_weights(os.path.join(base_path_neural_network, "models"))
+        create_sensor_output(weights_path=best_model, base_path=base_path_neural_network, num_rays=num_rays)
+        print("[##] Finished")
+    else:
+        print("[##] Skipping grid visualization")
+
+    if plot_model:
+        m_p = os.path.join(base_path_neural_network, "perf", "model.png")
+        print("[#] Plotting neural network model to file {0}".format(m_p))
+        world_model.plot_model(m_p)
+        print("[##] Finished")
+
+
+if __name__ == "__main__":
+    h_size = 150
+    pred_size = 10
+    validation = True
+    epochs = 2000
+    batch_size = 64
+    num_rays = 30
+    normalize = False
+
+    dest_path = os.path.join(os.path.dirname(__file__),
+                             "resources",
+                             "traffic_cars_data",
+                             "state_estimation_data",
+                             "evaluated")
+    base_path_training_set = "d:\\dev\\gridsim_state_estimation_data\\sensor_array\\training_data"
+    evaluation_base_path = "d:\\dev\\gridsim_state_estimation_data\\sensor_array\\eval"
+
+    run(h_size, pred_size, validation, epochs, batch_size, num_rays, normalize,
+        dest_path, base_path_training_set, evaluation_base_path, preprocess_data=False,
+        train=False, perf_graph=True, grid_output=False, cleanup=False, plot_model=False)
+
+
+'''
 if __name__ == "__main__":
     h_size = 150
     pred_size = 10
@@ -152,3 +267,4 @@ if __name__ == "__main__":
     for m_f in model_files:
         os.remove(os.path.join(base_path_neural_network, "models", m_f))
     print("[##] Finished")
+'''

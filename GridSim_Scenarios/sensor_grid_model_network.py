@@ -34,6 +34,9 @@ class WorldModel(object):
         self.print_summary = True
         self._build_architecture()
 
+    def plot_model(self, m_p):
+        plot_model(self.model, to_file=m_p)
+
     def _build_architecture(self):
         input_layer = Input(shape=self.input_shape)
         dense_input = Dense(units=self.num_rays, activation="relu")(input_layer)
