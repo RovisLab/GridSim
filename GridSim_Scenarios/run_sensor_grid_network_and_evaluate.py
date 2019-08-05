@@ -16,7 +16,6 @@ def run(*args, preprocess_data=True, train=True, perf_graph=True, grid_output=Tr
     normalize = args[6]
     dest_path = args[7]
     base_path_training_set = args[8]
-    evaluation_base_path = args[9]
 
     dirname = "sensor_array_{0}epochs_{1}".format(epochs,
                                                   str(datetime.datetime.now().time()).replace(":", "_").replace(".",
@@ -34,8 +33,6 @@ def run(*args, preprocess_data=True, train=True, perf_graph=True, grid_output=Tr
         os.makedirs(dest_path)
     if not os.path.exists(base_path_training_set):
         raise IOError
-    if not os.path.exists(evaluation_base_path):
-        os.makedirs(evaluation_base_path)
 
     print("[#] Initializing neural network model")
     world_model = SensorGridWorldModel(prediction_horizon_size=pred_size, num_rays=num_rays,
@@ -76,10 +73,16 @@ def run(*args, preprocess_data=True, train=True, perf_graph=True, grid_output=Tr
 
         best_model, loss_val = find_best_model_weights(os.path.join(base_path_neural_network, "models"))
 
-        create_graphs_sensor_array(weights_path=best_model,
-                                   base_path=evaluation_base_path,
-                                   graph_name="statistics_{0}".format(loss_val),
-                                   num_rays=num_rays)
+        if os.path.exists(best_model):
+            create_graphs_sensor_array(weights_path=best_model,
+                                       base_path=base_path_neural_network,
+                                       graph_name="statistics_{0}".format(loss_val),
+                                       num_rays=num_rays,
+                                       pred_horizon_size=pred_size,
+                                       validation=validation)
+        else:
+            print("[###] Weights file {0} does not exist.".format(best_model))
+            print("[##] Skipping performance graphics")
         print("[##] Finished")
     else:
         print("[##] Skipping performance graphics")
@@ -87,7 +90,11 @@ def run(*args, preprocess_data=True, train=True, perf_graph=True, grid_output=Tr
     if grid_output:
         print("[#] Creating sensor grid output visualization")
         best_model, _ = find_best_model_weights(os.path.join(base_path_neural_network, "models"))
-        create_sensor_output(weights_path=best_model, base_path=base_path_neural_network, num_rays=num_rays)
+        create_sensor_output(weights_path=best_model,
+                             base_path=base_path_neural_network,
+                             num_rays=num_rays,
+                             pred_horizon_size=pred_size,
+                             validation=validation)
         print("[##] Finished")
     else:
         print("[##] Skipping grid visualization")
@@ -98,12 +105,66 @@ def run(*args, preprocess_data=True, train=True, perf_graph=True, grid_output=Tr
         world_model.plot_model(m_p)
         print("[##] Finished")
 
+    # Copy output
+    training_graphs_path = os.path.join(base_path_neural_network, "perf")
+    training_graphs = os.listdir(training_graphs_path)
+    training_graphs = [os.path.join(training_graphs_path, t) for t in training_graphs if ".png" in t]
+    for f in training_graphs:
+        shutil.copyfile(f, os.path.join(model_dir, os.path.basename(f)))
+    best_model, _ = find_best_model_weights(os.path.join(base_path_neural_network, "models"))
+    if len(best_model) > 0:
+        shutil.copyfile(best_model, os.path.join(model_dir, os.path.basename(best_model)))
+    model_json = os.path.join(base_path_neural_network, "models", "model.json")
+    if os.path.exists(model_json):
+        shutil.copyfile(model_json, os.path.join(model_dir, "model.json"))
+
+    grid_eval_dir = os.path.join(base_path_neural_network, "perf", "grid_evaluation")
+    if os.path.exists(grid_eval_dir):
+        shutil.copytree(grid_eval_dir, os.path.join(eval_dir, os.path.basename(grid_eval_dir)))
+
+    output_files_nn = os.listdir(base_path_neural_network)
+    output_files_nn = [os.path.join(base_path_neural_network, f) for f in output_files_nn if ".npy" in f]
+    for f in output_files_nn:
+        shutil.copy(f, os.path.join(eval_dir, os.path.basename(f)))
+
+    if preprocess_data:
+        output_files = training_set.get_all_output_files()
+        fl = os.listdir(training_set.base_path)
+        fl = [os.path.join(training_set.base_path, f) for f in fl if ".npy" in f]
+        output_files.extend(fl)
+
+        for f in output_files:
+            shutil.copy(f, os.path.join(train_dir, os.path.basename(f)))
+
+    if cleanup:
+        for f in training_graphs:
+            os.remove(f)
+        weights_files = os.listdir(os.path.join(base_path_neural_network, "models"))
+        weights_files = [os.path.join(base_path_neural_network, "models", w)
+                         for w in weights_files if "weights" in w and "hdf5" in w]
+        for w in weights_files:
+            os.remove(w)
+        if os.path.exists(model_json):
+            os.remove(model_json)
+        if os.path.exists(grid_eval_dir):
+            shutil.rmtree(grid_eval_dir)
+        for f in output_files_nn:
+            os.remove(f)
+
+        if preprocess_data:
+            output_files = training_set.get_all_output_files()
+            for f in output_files:
+                os.remove(f)
+
+    else:
+        print("[##] Skipping cleanup")
+
 
 if __name__ == "__main__":
     h_size = 150
     pred_size = 10
     validation = True
-    epochs = 2000
+    epochs = 1
     batch_size = 64
     num_rays = 30
     normalize = False
@@ -113,12 +174,12 @@ if __name__ == "__main__":
                              "traffic_cars_data",
                              "state_estimation_data",
                              "evaluated")
-    base_path_training_set = "d:\\dev\\gridsim_state_estimation_data\\sensor_array\\training_data"
+    base_path_training_set = "d:\\dev\\gridsim_state_estimation_data\\sensor_array\\training_data_smaller"
     evaluation_base_path = "d:\\dev\\gridsim_state_estimation_data\\sensor_array\\eval"
 
     run(h_size, pred_size, validation, epochs, batch_size, num_rays, normalize,
-        dest_path, base_path_training_set, evaluation_base_path, preprocess_data=False,
-        train=False, perf_graph=True, grid_output=False, cleanup=False, plot_model=False)
+        dest_path, base_path_training_set, preprocess_data=True,
+        train=True, perf_graph=True, grid_output=True, cleanup=True, plot_model=True)
 
 
 '''

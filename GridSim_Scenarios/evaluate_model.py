@@ -126,13 +126,13 @@ def draw_per_sample_error_simplified(ground_truth, predictions, base_path, graph
         plt.clf()
 
 
-def create_graphs_sensor_array(weights_path, base_path, graph_name, num_rays):
-    model = WorldModel(prediction_horizon_size=10, validation=True, num_rays=num_rays)
+def create_graphs_sensor_array(weights_path, base_path, pred_horizon_size, validation, graph_name, num_rays):
+    model = WorldModel(pred_horizon_size, num_rays, validation)
     model.load_weights(weights_path)
 
     test_generator = StateEstimationSensorArrayDataGenerator(input_file_path=base_path, batch_size=1,
-                                                             prediction_horizon_size=10, shuffle=False, validation=True,
-                                                             normalize=False)
+                                                             prediction_horizon_size=pred_horizon_size,
+                                                             shuffle=False, validation=True, normalize=False)
     results = model.predict_generator(test_generator)
     test_generator.reset_file_markers()
     ground_truth = list()
@@ -148,12 +148,10 @@ def create_graphs_sensor_array(weights_path, base_path, graph_name, num_rays):
     draw_graphic(percentile, accumulator, base_path, graph_name)
     draw_per_sample_error_sensor_array(ground_truth, results, base_path, graph_name)
 
-    model.save_model()
 
-
-def create_sensor_output(weights_path, base_path, num_rays):
-    model = WorldModel(prediction_horizon_size=10, num_rays=30, validation=True, normalize=False)
-    model.load_weights(weights_path=weights_path)
+def create_sensor_output(weights_path, base_path, num_rays, pred_horizon_size, validation):
+    model = WorldModel(pred_horizon_size, num_rays, validation)
+    model.load_weights(weights_path)
     test_generator = StateEstimationSensorArrayDataGenerator(input_file_path=base_path, batch_size=1,
                                                              prediction_horizon_size=10, shuffle=False, validation=True,
                                                              normalize=False)
@@ -164,12 +162,14 @@ def create_sensor_output(weights_path, base_path, num_rays):
                              num_rays=num_rays)
 
 
-def create_graphs_simplified(weights_path, base_path, graph_name):
-    model = SimplifiedWorldModel(prediction_horizon_size=10, validation=True)
+def create_graphs_simplified(weights_path, pred_horizon_size, validation, base_path, graph_name):
+
+    model = SimplifiedWorldModel(pred_horizon_size, validation)
     model.load_weights(weights_path)
 
     test_generator = StateEstimationDataGenerator(input_file_path=base_path, batch_size=1,
-                                                  prediction_horizon_size=10, shuffle=False, validation=True)
+                                                  prediction_horizon_size=pred_horizon_size, shuffle=False,
+                                                  validation=True)
     results = model.predict_generator(test_generator)
     test_generator.reset_file_markers()
     ground_truth = list()
@@ -185,12 +185,12 @@ def create_graphs_simplified(weights_path, base_path, graph_name):
     draw_graphic(percentile, accumulator, base_path, graph_name)
     draw_per_sample_error_simplified(ground_truth, results, base_path, graph_name)
 
-    model.save_model()
-
 
 def find_best_model_weights(model_path):
     files = os.listdir(model_path)
     weigths_files = [f for f in files if "weights" in f and "hdf5" in f]
+    if len(weigths_files) == 0:
+        return "", 0.0
     min_loss = 1000000.0
     loss = 1000000.0
     best_model = os.path.join(model_path, weigths_files[0])
@@ -236,18 +236,4 @@ def convert_sign(base_path):
 
 
 if __name__ == "__main__":
-    # convert_sign("d:\\dev\\gridsim_state_estimation_data\\test\\training_set")
-    # bp = os.path.join(os.path.dirname(__file__), "resources", "traffic_cars_data", "state_estimation_data")
-    # wp = os.path.join(bp, "models", "weights.0138-1.876354.hdf5")
-    # create_graphs_sensor_array(weights_path=wp, base_path=bp, graph_name="statistics_0138-1.876354", num_rays=30)
-    create_sensor_output(weights_path=os.path.join(os.path.dirname(__file__),
-                                                   "resources",
-                                                   "traffic_cars_data",
-                                                   "state_estimation_data",
-                                                   "models",
-                                                   "weights.0146-6718.272902.hdf5"),
-                         base_path=os.path.join(os.path.dirname(__file__),
-                                                "resources",
-                                                "traffic_cars_data",
-                                                "state_estimation_data"),
-                         num_rays=30)
+    pass

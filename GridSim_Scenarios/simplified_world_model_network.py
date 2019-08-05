@@ -27,7 +27,22 @@ class WorldModel(object):
         self.print_summary = True
         self.draw_statistics = True
         self.validation = validation
+        self.output_names = list()
         self._build_architecture()
+
+    @staticmethod
+    def load_model(model_json, weights_path, pred_horizon_size, validation):
+        w_m = WorldModel(prediction_horizon_size=pred_horizon_size, validation=validation)
+        with open(model_json, "r") as j:
+            json_str = j.read()
+        model = model_from_json(json_str)
+        w_m.model = model
+        # w_m.model.compile(optimizer=Adam(lr=0.00005), loss="mean_squared_error", metrics=["mae", "accuracy"])
+        w_m.model.load_weights(weights_path)
+        return w_m
+
+    def load_weights(self, m_p):
+        self.model.load_weights(m_p)
 
     def _build_architecture(self):
         input_layer = Input(shape=self.input_shape)
@@ -48,8 +63,9 @@ class WorldModel(object):
             mlp = Dense(units=self.mlp_layer_num_units, activation="relu")(mlp_in)
             mlp_output = Dense(units=self.mlp_output_layer_size, activation="relu")(mlp)
             mlp_outputs.append(mlp_output)
-
+            self.output_names.append(mlp_output.get_config()["name"])
         self.model = Model([input_layer, fov_layer, action_layer, prev_action], mlp_outputs)
+        self.output_names = self.model.output_names
         self.model.compile(optimizer=Adam(lr=0.00005), loss="mean_squared_error", metrics=["mae", "accuracy"])
 
     def train_network(self, epochs=10, batch_size=256):
@@ -89,8 +105,7 @@ class WorldModel(object):
         if self.draw_statistics is True:
             plot_model(self.model, to_file=os.path.join(self.state_estimation_data_path, "perf", "model.png"))
 
-            outputs = ["dense_6", "dense_8", "dense_10", "dense_12", "dense_14",
-                       "dense_16", "dense_18", "dense_20", "dense_22", "dense_24"]
+            outputs = self.output_names
 
             loss_outputs = [x + "_loss" for x in outputs]
             loss_val_outputs = ["val_" + x + "_loss" for x in outputs]
@@ -125,6 +140,7 @@ class WorldModel(object):
                     plt.legend(["Train Loss"], loc="upper left")
                 plt.savefig(os.path.join(self.state_estimation_data_path, "perf", "loss_{0}.png".format(out)))
                 plt.clf()
+        self.save_model()
 
     def evaluate_network(self, x_test, y_test, batch_size=128):
         self.model.evaluate(x_test, y_test, batch_size=batch_size)
@@ -140,9 +156,6 @@ class WorldModel(object):
 
     def predict_generator(self, generator):
         return np.array(self.model.predict_generator(generator, verbose=1))
-
-    def load_weights(self, weights_path):
-        return self.model.load_weights(weights_path)
 
 
 if __name__ == "__main__":
