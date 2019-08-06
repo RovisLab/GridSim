@@ -9,7 +9,7 @@ class ModelCarTrainingSet(object):
     ...
 
     sensor_data_descriptor_file:
-    timestamp, velocity, steering_angle, x, y, pitch, us_fl, us_fcl, us_fc, us_fcr, us_fr
+    timestamp, velocity, steering_angle, x, y, yaw, us_fl, us_fcl, us_fc, us_fcr, us_fr
     ...
     """
     def __init__(self, base_path, strict=True, h_size=10, pred_size=10):

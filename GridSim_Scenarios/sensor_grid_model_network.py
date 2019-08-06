@@ -13,7 +13,7 @@ class WorldModel(object):
     """
     Number of front rays must be equal to number of back rays.
     """
-    def __init__(self, prediction_horizon_size, num_rays, validation=False, normalize=False, from_file=False):
+    def __init__(self, prediction_horizon_size, num_rays, validation=False, normalize=False):
         self.state_estimation_data_path = os.path.join(os.path.dirname(__file__),
                                                        "resources",
                                                        "traffic_cars_data",

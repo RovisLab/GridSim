@@ -3,6 +3,7 @@ from keras.preprocessing.sequence import pad_sequences
 import os
 import numpy as np
 import random
+from normalization import normalize_simplified_observations, normalize_sensor_array_predictions, normalize_actions, normalize_previous_actions
 
 
 class StateEstimationDataGeneratorImpl(object):
@@ -151,12 +152,18 @@ class StateEstimationDataGeneratorImpl(object):
 
 
 class StateEstimationDataGenerator(Sequence):
-    def __init__(self, input_file_path, batch_size, prediction_horizon_size, shuffle=True, validation=False):
+    def __init__(self, input_file_path,
+                 batch_size,
+                 prediction_horizon_size,
+                 shuffle=True,
+                 validation=False,
+                 normalize=False):
         self.__impl__ = StateEstimationDataGeneratorImpl(input_file_path=input_file_path,
                                                          batch_size=batch_size,
                                                          prediction_horizon_size=prediction_horizon_size,
                                                          shuffle=shuffle,
                                                          validation=validation)
+        self.normalize = normalize
 
     def __len__(self):
         return self.__impl__.__len__()
@@ -166,6 +173,11 @@ class StateEstimationDataGenerator(Sequence):
         return self._format_data(observations, in_fovs, actions, prev_actions, predictions)
 
     def _format_data(self, observations, in_fovs, actions, prev_actions, predictions):
+        if self.normalize is True:
+            observations = normalize_simplified_observations(observations, min(observations), max(observations))
+            predictions = normalize_sensor_array_predictions(predictions, min(predictions), max(predictions))
+            actions = normalize_actions(actions, min(actions), max(actions))
+            prev_actions = normalize_previous_actions(prev_actions, min(prev_actions), max(prev_actions))
         for idx in range(len(observations)):
             for idx2 in range(len(observations[idx])):
                 observations[idx][idx2] = [observations[idx][idx2]]
