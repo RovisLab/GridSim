@@ -481,6 +481,8 @@ class DistancesVisualizer(object):
         for idx in range(len(image_batch)):
             np_img = self.convert_surface_to_opencv_img(image_batch[idx])
             res_np_img = cv2.cvtColor(self.resize_image(np_img, (image_w, image_h)), cv2.COLOR_BGR2RGB)
+            cv2.putText(res_np_img, "t<{0}>".format(idx % 10 + 1), (0, res_np_img.shape[1] - 200), cv2.FONT_HERSHEY_COMPLEX, 2,
+                        (255, 255, 255), 2, cv2.LINE_AA)
             row_offset = row * image_w
             col_offset = col * image_h
             pil_image = Image.fromarray(res_np_img)
@@ -549,9 +551,15 @@ if __name__ == '__main__':
     """
     Data visualization example
     """
-    front_path = 'd:\\dev\\gridsim_state_estimation_data\\sensor_array\\training_data\\front_sensor_distances.npy'
+    '''front_path = 'd:\\dev\\gridsim_state_estimation_data\\sensor_array\\training_data\\front_sensor_distances.npy'
     rear_path = 'PATH TO REAR SENSOR DATA(DISTANCES)'
     car_data_path = 'PATH TO CAR DATA(replay.csv)'
     visualizer = DistancesVisualizer(car_data_path=None, front_data_path=front_path, rear_data_path=None,
                                      debug_window=False)
-    visualizer.visualize_sensor_data(500, 500, draw_car=True, batch_size=10, opencv=True)
+    visualizer.visualize_sensor_data(500, 500, draw_car=True, batch_size=10, opencv=True)'''
+
+    img = cv2.imread("d:\\dev\\GridSim\\GridSim_Scenarios\\resources\\traffic_cars_data\\state_estimation_data\\evaluated\\sensor_array_1epochs_14_25_03_838471\\evaluation\\grid_evaluation\\prediction_1668_test.png")
+    #cv2.putText(img, "t<{0}>".format(idx % 10 + 1), (0, img.shape[1] - 200), cv2.FONT_HERSHEY_COMPLEX, 2, (255, 0, 0), 2, cv2.LINE_AA)
+    cv2.imshow("Test", img)
+
+    cv2.waitKey()

@@ -164,8 +164,8 @@ if __name__ == "__main__":
     h_size = 150
     pred_size = 10
     validation = True
-    epochs = 1
-    batch_size = 64
+    epochs = 1000
+    batch_size = 32
     num_rays = 30
     normalize = False
 
@@ -174,7 +174,7 @@ if __name__ == "__main__":
                              "traffic_cars_data",
                              "state_estimation_data",
                              "evaluated")
-    base_path_training_set = "d:\\dev\\gridsim_state_estimation_data\\sensor_array\\training_data_smaller"
+    base_path_training_set = "d:\\dev\\gridsim_state_estimation_data\\sensor_array\\training_data"
     evaluation_base_path = "d:\\dev\\gridsim_state_estimation_data\\sensor_array\\eval"
 
     run(h_size, pred_size, validation, epochs, batch_size, num_rays, normalize,
