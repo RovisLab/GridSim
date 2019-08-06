@@ -4,3 +4,4 @@
 GridSim_Scenarios/resources/traffic_cars_data/state_estimation_data/evaluated/
 GridSim_Scenarios/resources/traffic_cars_data/state_estimation_data/models/
 GridSim_Scenarios/resources/traffic_cars_data/state_estimation_data/perf/
+GridSim_Scenarios/resources/traffic_cars_data/state_estimation_data/*.npy
