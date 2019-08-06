@@ -133,6 +133,6 @@ if __name__ == "__main__":
                                                                           "traffic_cars_data",
                                                                           "state_estimation_data"),
                                                    strict=True,
-                                                   h_size=20,
+                                                   h_size=150,
                                                    pred_size=10)
     training_set.process_all_data()
