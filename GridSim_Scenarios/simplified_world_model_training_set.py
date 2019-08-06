@@ -93,6 +93,16 @@ class SimplifiedWorldModelTrainingSet(object):
                 prediction_data.append(p_slice)
         self.write_output_data(history_data, prediction_data, val)
 
+    def process_training_file_all(self, training_fp, h_size, pred_size, val=False):
+        raw_elements = get_elements_from_gridsim_record_file(training_fp)
+        history_data, prediction_data = list(), list()
+        for idx in range(len(raw_elements) - (h_size + pred_size)):
+            h_slice = raw_elements[idx:idx + h_size]
+            p_slice = raw_elements[idx + h_size:idx + h_size + pred_size]
+            history_data.append(h_slice)
+            prediction_data.append(p_slice)
+        self.write_output_data(history_data, prediction_data, val)
+
     def process_all_data(self):
         files = os.listdir(self.base_path)
         training_files = [os.path.join(self.base_path, f) for f in files if "tmp" in f and "npy" in f]
@@ -105,10 +115,10 @@ class SimplifiedWorldModelTrainingSet(object):
                 t_files.append(f)
 
         for f in t_files:
-            self.process_training_file(training_fp=f, h_size=self.h_size, pred_size=self.pred_size, val=False)
+            self.process_training_file_all(training_fp=f, h_size=self.h_size, pred_size=self.pred_size, val=False)
 
         for f in val_files:
-            self.process_training_file(training_fp=f, h_size=self.h_size, pred_size=self.pred_size, val=True)
+            self.process_training_file_all(training_fp=f, h_size=self.h_size, pred_size=self.pred_size, val=True)
 
     def get_all_output_files(self):
         fl = ["actions.npy", "observations.npy", "predictions.npy", "prev_actions.npy",
