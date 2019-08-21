@@ -481,7 +481,7 @@ class DistancesVisualizer(object):
         for idx in range(len(image_batch)):
             np_img = self.convert_surface_to_opencv_img(image_batch[idx])
             res_np_img = cv2.cvtColor(self.resize_image(np_img, (image_w, image_h)), cv2.COLOR_BGR2RGB)
-            cv2.putText(res_np_img, "t<{0}>".format(idx % 10 + 1), (0, res_np_img.shape[1] - 200), cv2.FONT_HERSHEY_COMPLEX, 2,
+            cv2.putText(res_np_img, "<t + {0}>".format(idx % 10 + 1), (0, res_np_img.shape[1] - 200), cv2.FONT_HERSHEY_COMPLEX, 2,
                         (255, 255, 255), 2, cv2.LINE_AA)
             row_offset = row * image_w
             col_offset = col * image_h

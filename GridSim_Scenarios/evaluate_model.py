@@ -107,6 +107,8 @@ def draw_per_sample_error_sensor_array(ground_truth, predictions, base_path, gra
         diff.append(d)
     ox = np.arange(len(means_gt[0]))
     for idx in range(len(means_gt)):
+        plt.xlabel("Test Sample")
+        plt.ylabel("Sensor Rays")
         plt.plot(ox, means_gt[idx], label="Ground Truth")
         plt.plot(ox, means_p[idx], label="Predicted")
         plt.plot(ox, diff[idx], label="Error")
