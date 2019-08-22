@@ -6,7 +6,9 @@ import matplotlib
 import matplotlib.pyplot as plt
 from data_loader import StateEstimationDataGenerator
 from sensor_array_data_loader import StateEstimationSensorArrayDataGenerator
+from model_car_data_loader import StateEstimationModelCarDataGenerator
 from sensor_grid_model_network import WorldModel
+from model_car_network import WorldModel as ModelCarWorldModel
 from simplified_world_model_network import WorldModel as SimplifiedWorldModel
 from grid_visualizer import create_visual_evaluation
 
@@ -128,6 +130,31 @@ def draw_per_sample_error_simplified(ground_truth, predictions, base_path, graph
         plt.clf()
 
 
+def create_graphs_model_car(weights_path, base_path, pred_horizon_size, validation, graph_name, num_rays):
+    model = ModelCarWorldModel(pred_horizon_size=pred_horizon_size, num_rays=num_rays, val=validation)
+    model.load_weights(weights_path)
+
+    test_generator = StateEstimationModelCarDataGenerator(input_file_path=base_path,
+                                                          batch_size=1,
+                                                          prediction_horizon_size=pred_horizon_size,
+                                                          shuffle=False,
+                                                          validation=True)
+    results = model.predict_generator(test_generator)
+    test_generator.reset_file_markers()
+    ground_truth = list()
+    for input_data, output_data in test_generator:
+        ground_truth.append(output_data)
+    ground_truth = np.swapaxes(np.array(ground_truth), 0, 1)
+
+    # ground_truth = ground_truth.reshape((ground_truth.shape[0], -1))
+
+    # results = results.reshape((results.shape[0], -1))
+
+    percentile, accumulator = calculate_statistics_sensor_array(results, ground_truth)
+    draw_graphic(percentile, accumulator, base_path, graph_name)
+    draw_per_sample_error_sensor_array(ground_truth, results, base_path, graph_name)
+
+
 def create_graphs_sensor_array(weights_path, base_path, pred_horizon_size, validation, graph_name, num_rays):
     model = WorldModel(pred_horizon_size, num_rays, validation)
     model.load_weights(weights_path)
@@ -157,6 +184,18 @@ def create_sensor_output(weights_path, base_path, num_rays, pred_horizon_size, v
     test_generator = StateEstimationSensorArrayDataGenerator(input_file_path=base_path, batch_size=1,
                                                              prediction_horizon_size=10, shuffle=False, validation=True,
                                                              normalize=False)
+    results = model.predict_generator(test_generator)
+    create_visual_evaluation(gt_file=os.path.join(base_path, "predictions_val.npy"),
+                             predictions=results,
+                             dest_base_path=os.path.join(base_path, "perf"),
+                             num_rays=num_rays)
+
+
+def create_model_car_sensor_output(weights_path, base_path, num_rays, pred_horizon_size, validation):
+    model = ModelCarWorldModel(pred_horizon_size, num_rays, validation)
+    model.load_weights(weights_path)
+    test_generator = StateEstimationModelCarDataGenerator(input_file_path=base_path, batch_size=1,
+                                                          prediction_horizon_size=10, shuffle=False, validation=True)
     results = model.predict_generator(test_generator)
     create_visual_evaluation(gt_file=os.path.join(base_path, "predictions_val.npy"),
                              predictions=results,

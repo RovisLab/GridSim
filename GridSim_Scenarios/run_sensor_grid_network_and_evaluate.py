@@ -2,11 +2,13 @@ import os
 import datetime
 import shutil
 from sensor_grid_model_network import WorldModel as SensorGridWorldModel
+from model_car_network import WorldModel as ModelCarWorldModel
 from sensor_array_world_model_training_set import FrontSensorArrayTrainingSet
-from evaluate_model import create_graphs_sensor_array, find_best_model_weights, create_sensor_output
+from model_car_training_set import ModelCarTrainingSet
+from evaluate_model import create_graphs_sensor_array, create_graphs_model_car, find_best_model_weights, create_sensor_output, create_model_car_sensor_output
 
 
-def run(*args, preprocess_data=True, train=True, perf_graph=True, grid_output=True, cleanup=True, plot_model=True):
+def run(*args, model_car=False, preprocess_data=True, train=True, perf_graph=True, grid_output=True, cleanup=True, plot_model=True):
     h_size = args[0]
     pred_size = args[1]
     validation = args[2]
@@ -17,9 +19,14 @@ def run(*args, preprocess_data=True, train=True, perf_graph=True, grid_output=Tr
     dest_path = args[7]
     base_path_training_set = args[8]
 
-    dirname = "sensor_array_{0}epochs_{1}".format(epochs,
-                                                  str(datetime.datetime.now().time()).replace(":", "_").replace(".",
-                                                                                                                "_"))
+    if model_car is False:
+        dirname = "sensor_array_{0}epochs_{1}".format(epochs,
+                                                      str(datetime.datetime.now().time()).replace(":", "_").replace(".",
+                                                                                                                    "_"))
+    else:
+        dirname = "model_car_{0}epochs_{1}".format(epochs,
+                                                   str(datetime.datetime.now().time()).replace(":", "_").replace(".",
+                                                                                                                 "_"))
     crt_dirname = os.path.join(dest_path, dirname)
     os.mkdir(crt_dirname)
     model_dir = os.path.join(crt_dirname, "model")
@@ -35,17 +42,25 @@ def run(*args, preprocess_data=True, train=True, perf_graph=True, grid_output=Tr
         raise IOError
 
     print("[#] Initializing neural network model")
-    world_model = SensorGridWorldModel(prediction_horizon_size=pred_size, num_rays=num_rays,
-                                       validation=validation, normalize=normalize)
+    if model_car is False:
+        world_model = SensorGridWorldModel(prediction_horizon_size=pred_size, num_rays=num_rays,
+                                           validation=validation, normalize=normalize)
+    else:
+        world_model = ModelCarWorldModel(pred_horizon_size=pred_size, num_rays=num_rays, val=validation)
     print("[##] Finished")
     base_path_neural_network = world_model.state_estimation_data_path
     if preprocess_data:
         print("[#] Preparing training data")
-
-        training_set = FrontSensorArrayTrainingSet(base_path=base_path_training_set,
-                                                   strict=True,
-                                                   h_size=h_size,
-                                                   pred_size=pred_size)
+        if model_car is False:
+            training_set = FrontSensorArrayTrainingSet(base_path=base_path_training_set,
+                                                       strict=True,
+                                                       h_size=h_size,
+                                                       pred_size=pred_size)
+        else:
+            training_set = ModelCarTrainingSet(base_path=base_path_training_set,
+                                               strict=True,
+                                               h_size=h_size,
+                                               pred_size=pred_size)
         training_set.process_all_data()
 
         print("[##] Finished")
@@ -74,12 +89,20 @@ def run(*args, preprocess_data=True, train=True, perf_graph=True, grid_output=Tr
         best_model, loss_val = find_best_model_weights(os.path.join(base_path_neural_network, "models"))
 
         if os.path.exists(best_model):
-            create_graphs_sensor_array(weights_path=best_model,
-                                       base_path=base_path_neural_network,
-                                       graph_name="statistics_{0}".format(loss_val),
-                                       num_rays=num_rays,
-                                       pred_horizon_size=pred_size,
-                                       validation=validation)
+            if model_car is False:
+                create_graphs_sensor_array(weights_path=best_model,
+                                           base_path=base_path_neural_network,
+                                           graph_name="statistics_{0}".format(loss_val),
+                                           num_rays=num_rays,
+                                           pred_horizon_size=pred_size,
+                                           validation=validation)
+            else:
+                create_graphs_model_car(weights_path=best_model,
+                                        base_path=base_path_neural_network,
+                                        graph_name="statistics_{0}".format(loss_val),
+                                        num_rays=num_rays,
+                                        pred_horizon_size=pred_size,
+                                        validation=validation)
         else:
             print("[###] Weights file {0} does not exist.".format(best_model))
             print("[##] Skipping performance graphics")
@@ -90,11 +113,18 @@ def run(*args, preprocess_data=True, train=True, perf_graph=True, grid_output=Tr
     if grid_output:
         print("[#] Creating sensor grid output visualization")
         best_model, _ = find_best_model_weights(os.path.join(base_path_neural_network, "models"))
-        create_sensor_output(weights_path=best_model,
-                             base_path=base_path_neural_network,
-                             num_rays=num_rays,
-                             pred_horizon_size=pred_size,
-                             validation=validation)
+        if model_car is False:
+            create_sensor_output(weights_path=best_model,
+                                 base_path=base_path_neural_network,
+                                 num_rays=num_rays,
+                                 pred_horizon_size=pred_size,
+                                 validation=validation)
+        else:
+            create_model_car_sensor_output(weights_path=best_model,
+                                           base_path=base_path_neural_network,
+                                           num_rays=num_rays,
+                                           pred_horizon_size=pred_size,
+                                           validation=validation)
         print("[##] Finished")
     else:
         print("[##] Skipping grid visualization")
@@ -161,12 +191,13 @@ def run(*args, preprocess_data=True, train=True, perf_graph=True, grid_output=Tr
 
 
 if __name__ == "__main__":
-    h_size = 150
+    h_size = 50
     pred_size = 10
     validation = True
     epochs = 1000
     batch_size = 32
-    num_rays = 30
+    num_rays = 5
+    model_car = True
     normalize = False
 
     dest_path = os.path.join(os.path.dirname(__file__),
@@ -174,12 +205,12 @@ if __name__ == "__main__":
                              "traffic_cars_data",
                              "state_estimation_data",
                              "evaluated")
-    base_path_training_set = "d:\\dev\\gridsim_state_estimation_data\\sensor_array\\training_data"
-    evaluation_base_path = "d:\\dev\\gridsim_state_estimation_data\\sensor_array\\eval"
+    base_path_training_set = "d:\\ModelCarDataset\\datastream5216945\\sets"
+    evaluation_base_path = "d:\\dev\\gridsim_state_estimation_data\\model_car\\eval"
 
     run(h_size, pred_size, validation, epochs, batch_size, num_rays, normalize,
         dest_path, base_path_training_set, preprocess_data=True,
-        train=True, perf_graph=True, grid_output=True, cleanup=True, plot_model=True)
+        train=True, perf_graph=True, grid_output=True, cleanup=True, plot_model=True, model_car=model_car)
 
 
 '''

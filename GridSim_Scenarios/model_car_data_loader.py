@@ -1,30 +1,28 @@
 import os
-import cv2
+import random
 import numpy as np
 from keras.utils import Sequence
 
 
-def get_model_car_observations(base_path, obs_str):
+def get_model_car_observations(obs_str):
     raw_elements = obs_str.split(",")
     processed_elements = list()
-    if len(raw_elements[-1]) == 0:
+    if len(raw_elements[-1]) == 0 or raw_elements[-1] == "\n":
         raw_elements.pop()
-    for idx in range(0, len(raw_elements), 7):
+    for idx in range(0, len(raw_elements), 5):
         us_fl = float(raw_elements[idx])
         us_fcl = float(raw_elements[idx+1])
         us_fc = float(raw_elements[idx+2])
         us_fcr = float(raw_elements[idx+3])
         us_fr = float(raw_elements[idx+4])
-        img_rgb = cv2.imread(os.path.join(base_path, raw_elements[idx+5]))
-        img_d = cv2.imread(os.path.join(base_path, raw_elements[idx+6]))
-        processed_elements.append((us_fl, us_fcl, us_fc, us_fcr, us_fr, img_rgb, img_d))
+        processed_elements.append((us_fl, us_fcl, us_fc, us_fcr, us_fr))
     return processed_elements
 
 
 def get_model_car_predictions(pred_str):
     raw_elements = pred_str.split(",")
     processed_elements = list()
-    if len(raw_elements[-1]) == 0:
+    if len(raw_elements[-1]) == 0 or raw_elements[-1] == "\n":
         raw_elements.pop()
     for idx in range(0, len(raw_elements), 5):
         us_fl = float(raw_elements[idx])
@@ -39,7 +37,7 @@ def get_model_car_predictions(pred_str):
 def get_model_car_actions(action_str):
     raw_elements = action_str.split(",")
     processed_elements = list()
-    if len(raw_elements[-1]) == 0:
+    if len(raw_elements[-1]) == 0 or raw_elements[-1] == "\n":
         raw_elements.pop()
     for idx in range(0, len(raw_elements), 2):
         vel = float(raw_elements[idx])
@@ -51,13 +49,10 @@ def get_model_car_actions(action_str):
 def get_model_car_prev_actions(prev_action_str):
     processed_elements = list()
     raw_elements = prev_action_str.split(",")
-    if len(raw_elements[-1]) == 0:
+    if len(raw_elements[-1]) == 0 or raw_elements[-1] == "\n":
         raw_elements.pop()
-    for x in raw_elements:
-        mini_list = list()
-        for xx in x:
-            mini_list.append(float(xx))
-        processed_elements.append(mini_list)
+    for idx in range(0, len(raw_elements), 2):
+        processed_elements.append([float(raw_elements[idx]), float(raw_elements[idx+1])])
     return processed_elements
 
 
@@ -140,7 +135,7 @@ class StateEstimationModelCarDataGenerator(Sequence):
             self.cache_file_markers.append(self.file_markers[i])
 
     def read_observations(self, obs_str):
-        return get_model_car_observations(base_path=self.input_file_path, obs_str=obs_str)
+        return get_model_car_observations(obs_str=obs_str)
 
     def read_predictions(self, pred_str):
         return get_model_car_predictions(pred_str=pred_str)
@@ -187,13 +182,15 @@ class StateEstimationModelCarDataGenerator(Sequence):
         actions, observations, prev_actions, predictions = self.get_batch()
         return self._format_data(actions, observations, prev_actions, predictions)
 
-    def _format_data(self, observations, actions, prev_actions, predictions):
+    def _format_data(self, actions, observations, prev_actions, predictions):
         for idx in range(len(prev_actions)):
             for idx2 in range(len(prev_actions[idx])):
                 prev_actions[idx][idx2] = [prev_actions[idx][idx2]]
         observations = np.array(observations)
         actions = np.array(actions)
+        actions = actions.reshape((int(actions.shape[0]), int(actions.shape[1] * actions.shape[2])))
         prev_actions = np.array(prev_actions)
+        prev_actions = prev_actions.reshape((int(prev_actions.shape[0]), int(prev_actions.shape[1]), -1))
 
         p = list()
         if len(predictions):
@@ -205,4 +202,12 @@ class StateEstimationModelCarDataGenerator(Sequence):
         return [observations, actions, prev_actions], p
 
     def on_epoch_end(self):
-        pass
+        self.file_markers = list()
+        for i in range(len(self.cache_file_markers)):
+            self.file_markers.append(self.cache_file_markers[i])
+        if self.shuffle is True:
+            random.shuffle(self.file_markers)
+
+    def reset_file_markers(self):
+        for i in range(len(self.cache_file_markers)):
+            self.file_markers.append(self.cache_file_markers[i])
