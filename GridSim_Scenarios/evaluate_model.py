@@ -3,6 +3,7 @@ import shutil
 from keras.models import load_model
 import numpy as np
 import matplotlib
+from scipy.signal import medfilt
 import matplotlib.pyplot as plt
 from data_loader import StateEstimationDataGenerator
 from sensor_array_data_loader import StateEstimationSensorArrayDataGenerator
@@ -93,6 +94,11 @@ def calculate_array_diff(gt, pred):
     return np.mean(diff)
 
 
+def calculate_array_std_dev(gt, pred):
+    diff = abs(gt - pred)
+    return np.std(diff)
+
+
 def draw_per_sample_error_sensor_array(ground_truth, predictions, base_path, graph_name):
     means_gt, means_p = list(), list()
     diff = list()
@@ -153,6 +159,83 @@ def create_graphs_model_car(weights_path, base_path, pred_horizon_size, validati
     percentile, accumulator = calculate_statistics_sensor_array(results, ground_truth)
     draw_graphic(percentile, accumulator, base_path, graph_name)
     draw_per_sample_error_sensor_array(ground_truth, results, base_path, graph_name)
+    draw_position_error_model_car(ground_truth, results, base_path)
+
+
+def draw_position_error(ground_truth, results, base_path):
+    crt_sample = np.arange(0, len(ground_truth[0]), 1)
+    diff = list()
+    std_devs = list()
+    for g_t, p in zip(ground_truth, results):
+        d = list()
+        std_d = list()
+        for sample_num_g_t, sample_num_p in zip(g_t, p):
+            d.append(calculate_array_diff(sample_num_g_t, sample_num_p))
+            std_d.append(calculate_array_std_dev(sample_num_g_t, sample_num_p))
+        diff.append(d)
+        std_devs.append(std_d)
+
+    # Filter results
+    for idx in range(len(diff)):
+        diff[idx] = medfilt(diff[idx], 45)
+        std_devs[idx] = medfilt(std_devs[idx], 45)
+
+    idx = 1
+    for d, std_d in zip(diff, std_devs):
+        plt.xlabel("Sample #")
+        plt.ylabel("Error [px]")
+        plt.plot(crt_sample, d, label="Frame t+{0}".format(idx))
+        std_dev_neg = d - np.mean(std_d)
+        std_dev_pos = d + np.mean(std_d)
+        plt.fill_between(crt_sample, std_dev_pos, std_dev_neg, alpha=0.4)
+        plt.xticks(np.arange(min(crt_sample), max(crt_sample), 500))
+        plt.margins(0)
+
+        # set grid linestyle
+        plt.grid(linestyle='--')
+        plt.legend()
+
+        plt.savefig(os.path.join(base_path, "perf", "position_error_frame_{0}.png".format(idx)))
+        idx += 1
+        plt.clf()
+
+
+def draw_position_error_model_car(ground_truth, results, base_path):
+    crt_sample = np.arange(0, len(ground_truth[0]), 1)
+    diff = list()
+    std_devs = list()
+    for g_t, p in zip(ground_truth, results):
+        d = list()
+        std_d = list()
+        for sample_num_g_t, sample_num_p in zip(g_t, p):
+            d.append(calculate_array_diff(sample_num_g_t, sample_num_p))
+            std_d.append(calculate_array_std_dev(sample_num_g_t, sample_num_p))
+        diff.append(d)
+        std_devs.append(std_d)
+
+    # Filter results
+    for idx in range(len(diff)):
+        diff[idx] = medfilt(diff[idx], 45)
+        std_devs[idx] = medfilt(std_devs[idx], 45)
+
+    idx = 1
+    for d, std_d in zip(diff, std_devs):
+        plt.xlabel("Sample #")
+        plt.ylabel("Error [m]")
+        plt.plot(crt_sample, d, label="Frame t+{0}".format(idx))
+        std_dev_neg = d - np.mean(std_d)
+        std_dev_pos = d + np.mean(std_d)
+        plt.fill_between(crt_sample, std_dev_pos, std_dev_neg, alpha=0.4)
+        plt.xticks(np.arange(min(crt_sample), max(crt_sample), 10))
+        plt.margins(0)
+
+        # set grid linestyle
+        plt.grid(linestyle='--')
+        plt.legend()
+
+        plt.savefig(os.path.join(base_path, "perf", "mc_position_error_frame_{0}.png".format(idx)))
+        idx += 1
+        plt.clf()
 
 
 def create_graphs_sensor_array(weights_path, base_path, pred_horizon_size, validation, graph_name, num_rays):
@@ -176,6 +259,7 @@ def create_graphs_sensor_array(weights_path, base_path, pred_horizon_size, valid
     percentile, accumulator = calculate_statistics_sensor_array(results, ground_truth)
     draw_graphic(percentile, accumulator, base_path, graph_name)
     draw_per_sample_error_sensor_array(ground_truth, results, base_path, graph_name)
+    draw_position_error(ground_truth, results, base_path)
 
 
 def create_sensor_output(weights_path, base_path, num_rays, pred_horizon_size, validation):

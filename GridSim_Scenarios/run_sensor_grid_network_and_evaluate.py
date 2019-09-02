@@ -8,7 +8,8 @@ from model_car_training_set import ModelCarTrainingSet
 from evaluate_model import create_graphs_sensor_array, create_graphs_model_car, find_best_model_weights, create_sensor_output, create_model_car_sensor_output
 
 
-def run(*args, model_car=False, preprocess_data=True, train=True, perf_graph=True, grid_output=True, cleanup=True, plot_model=True):
+def run(*args, model_car=False, preprocess_data=True, train=True, perf_graph=True,
+        grid_output=True, cleanup=True, plot_model=True, save_prediction=False):
     h_size = args[0]
     pred_size = args[1]
     validation = args[2]
@@ -209,8 +210,8 @@ if __name__ == "__main__":
     evaluation_base_path = "d:\\dev\\gridsim_state_estimation_data\\model_car\\eval"
 
     run(h_size, pred_size, validation, epochs, batch_size, num_rays, normalize,
-        dest_path, base_path_training_set, preprocess_data=True,
-        train=True, perf_graph=True, grid_output=True, cleanup=True, plot_model=True, model_car=model_car)
+        dest_path, base_path_training_set, preprocess_data=False,
+        train=False, perf_graph=True, grid_output=False, cleanup=False, plot_model=False, model_car=model_car)
 
 
 '''

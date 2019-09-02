@@ -61,6 +61,9 @@ class WorldModel(object):
         with open(dest_path, "w") as json_file:
             json_file.write(model_json)
 
+    def plot_model(self, m_p):
+        plot_model(self.model, to_file=m_p)
+
     def train_model(self, epochs=100, batch_size=32):
         if self.print_summary:
             self.model.summary()

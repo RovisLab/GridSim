@@ -51,12 +51,12 @@ class DistancesVisualizer(object):
         self.rear_data_path = rear_data_path
         if self.front_data_path is not None:
             if os.path.exists(self.front_data_path) is True:
-                self.front_sensor_data = read_distances(self.front_data_path)
+                self.front_sensor_data = read_distances_ignore_comma(self.front_data_path)
         else:
             self.front_sensor_data = None
         if self.rear_data_path is not None:
             if os.path.exists(self.rear_data_path) is True:
-                self.rear_sensor_data = read_distances(self.rear_data_path)
+                self.rear_sensor_data = read_distances_ignore_comma(self.rear_data_path)
         else:
             self.rear_sensor_data = None
 
@@ -481,8 +481,8 @@ class DistancesVisualizer(object):
         for idx in range(len(image_batch)):
             np_img = self.convert_surface_to_opencv_img(image_batch[idx])
             res_np_img = cv2.cvtColor(self.resize_image(np_img, (image_w, image_h)), cv2.COLOR_BGR2RGB)
-            cv2.putText(res_np_img, "<t + {0}>".format(idx % 10 + 1), (0, res_np_img.shape[1] - 200), cv2.FONT_HERSHEY_COMPLEX, 2,
-                        (255, 255, 255), 2, cv2.LINE_AA)
+            cv2.putText(res_np_img, "<t+{0}>".format(idx % 10 + 1), (0, res_np_img.shape[1] - 200), cv2.FONT_HERSHEY_COMPLEX, 2,
+                       (255, 255, 255), 2, cv2.LINE_AA)
             row_offset = row * image_w
             col_offset = col * image_h
             pil_image = Image.fromarray(res_np_img)

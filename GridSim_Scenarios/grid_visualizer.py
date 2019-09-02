@@ -3,6 +3,9 @@ import numpy as np
 from data_visualizer import distances_visualizer
 
 
+MODEL_CAR_ULTRASONIC_NUM_SENSORS = 5
+
+
 def get_elements_from_prediction_file(pred_str):
     elements = pred_str.split(",")
     processed = list()
@@ -16,6 +19,13 @@ def get_elements_from_prediction_file(pred_str):
     return processed
 
 
+def model_car_rays_to_gridsim_rays(sequence):
+    converted_sequence = list()
+    for ray in sequence:
+        converted_sequence.append(int(round(ray * (150.0 / 2.55))))
+    return converted_sequence
+
+
 def convert_gt_to_grids(gt_fp, dest_fp, num_rays):
     with open(gt_fp, "r") as ground_truth_file:
         with open(dest_fp, "w") as dest_f:
@@ -26,6 +36,8 @@ def convert_gt_to_grids(gt_fp, dest_fp, num_rays):
                 series_prediction = get_elements_from_prediction_file(line)
                 for idx in range(0, len(series_prediction), num_rays):
                     sequence = series_prediction[idx:idx+num_rays]
+                    if num_rays == MODEL_CAR_ULTRASONIC_NUM_SENSORS:
+                        sequence = model_car_rays_to_gridsim_rays(sequence)
                     for s in sequence:
                         dest_f.write("{0},".format(s))
                     dest_f.write("\n")
@@ -37,6 +49,8 @@ def convert_predictions_to_grids(predictions, dest_fp, num_rays):
         for prediction_batch in predictions:
             for idx in range(0, len(prediction_batch)):
                 sequence = prediction_batch[idx]
+                if num_rays == MODEL_CAR_ULTRASONIC_NUM_SENSORS:
+                    sequence = model_car_rays_to_gridsim_rays(sequence)
                 for s in sequence:
                     dest.write("{0},".format(s))
                 dest.write("\n")
