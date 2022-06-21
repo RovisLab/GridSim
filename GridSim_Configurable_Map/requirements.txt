@@ -1,5 +1,5 @@
 pygame==1.9.4
-numpy==1.16.0
+numpy==1.22.0
 opencv-python
 tensorflow==1.12.0
 keras==2.1.0
